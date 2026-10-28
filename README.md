@@ -1,6 +1,6 @@
-# TravelMate — M1 and M2
+# TravelMate — M1 through M4
 
-Preact/TypeScript PWA for small group trips. Travelers join through an expiring QR invitation, receive a persistent Supabase anonymous session, and wait for organizer approval. English/Thai labels, 18px text and 56px buttons are included. No identity is created on launch.
+Preact/TypeScript PWA for small group trips. Travelers join through an expiring QR invitation, receive a persistent Supabase anonymous session, and wait for organizer approval. Approved travelers share an itinerary, arrival check-ins, and expenses with deterministic whole-unit splits and suggested settlements. Itinerary and expense data can be cached on the device, and check-ins/expenses created offline are queued for retry when connectivity returns. English/Thai labels, 18px text and 56px buttons are included. No identity is created on launch.
 
 ## Run locally
 
@@ -38,8 +38,9 @@ Create a trip, generate a QR, and have travelers scan it with their device camer
 - Tokens contain 244 random bits from two UUIDs and only SHA-256 hashes are stored. URL fragments keep tokens out of HTTP request URLs. Gateway validation happens before anonymous sign-in and again atomically at redemption.
 - Gateway validates bearer tokens using Supabase Auth and is the only caller permitted to redeem. HMAC IP buckets permit 20 attempts per ten minutes; failed valid-format attempts commit the counter. Verify your deployment's trusted proxy appends/overwrites `x-forwarded-for`; do not expose the function behind a proxy that lets callers control its last address. Also enable Supabase Auth CAPTCHA/rate limits for production anonymous signups.
 - Pending requests reserve one invitation use. Duplicate requests do not consume another use, including across invitations for the same trip. Denials do not restore uses. Names never claim existing identities.
-- M1/M2 tables cover trips, members, invitations and requests. Itinerary, expenses, check-in, offline private data/outbox and verified identity relinking are M3/M4 or later work. No GPS collection exists.
-- Browser storage loss requires organizer-assisted rejoin. This release deliberately does not relink financial/member history automatically. Do not remove or replace an existing traveler solely because a new device presents the same name.
+- Itinerary, check-in, expense and share writes are restricted to approved trip members through RLS and fixed-search-path security-definer RPCs. Expense amounts use integer minor units; each selected member receives an equal split and earlier selections receive any remainder.
+- Offline cache and outbox records are scoped by the current auth user and trip. The app queues check-ins and expenses while offline and retries them on reconnection. This provides best-effort offline entry; it is not a promise of conflict-free editing or guaranteed delivery if browser storage is cleared.
+- No GPS collection exists. Location coordinates are optional itinerary data entered by the organizer and are used only to form a map link. Browser storage loss requires organizer-assisted rejoin; verified identity relinking across lost devices is not implemented, so do not remove or replace an existing traveler solely because a new device presents the same name.
 
 ## Verify
 
@@ -47,8 +48,10 @@ Create a trip, generate a QR, and have travelers scan it with their device camer
 npm test
 npm run lint
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
-The database test executes the actual migration in PGlite (PostgreSQL WASM), with Auth roles and `auth.uid()` emulated. It checks isolation before approval, unauthorized organizer operations, duplicate joining/use counts, and expired/revoked invites. This is not a substitute for testing deployed Supabase Auth and Edge networking.
+The database tests execute the actual migrations in PGlite (PostgreSQL WASM), with Auth roles and `auth.uid()` emulated. They check membership isolation, unauthorized operations, invite handling, itinerary/check-in access, and expense integrity. Playwright runs an enrolled itinerary/expense flow in desktop and mobile Chromium against deterministic mocked Supabase responses. It also checks form labels and captures fixture-backed preview screenshots in `artifacts/`; those images are previews, not evidence of a live Supabase session or production data. These checks do not replace testing deployed Supabase Auth and Edge networking.
 
-Manual acceptance: use separate organizer and traveler browser profiles; request approval; confirm traveler cannot see a trip until approved; revoke an invite; reload both sessions; remove traveler and refresh; install the production build on iOS and Android and repeat enrollment/relaunch. Real-device storage separation and the full hosted Auth/Edge flow have not been verified in this environment. Sessions remain recoverable only while local auth storage survives. Private offline data is intentionally not available in M1/M2.
+Manual acceptance before release: use separate organizer and traveler browser profiles; request approval; confirm traveler cannot see a trip until approved; revoke an invite; reload both sessions; remove a traveler and refresh; test offline entry and recovery after going online; install the production build on iOS and Android and repeat enrollment/relaunch. Real-device storage separation, push/install behavior, and the hosted Auth/Edge flow have not been verified by the browser fixture. Sessions remain recoverable only while local auth storage survives.

@@ -84,3 +84,149 @@ a {
 img {
   max-width: 100%;
 }
+.activity {
+  border: 2px solid #d5ded8;
+  background: #f5f8f5;
+  padding: 1rem;
+  border-radius: 18px;
+}
+.activity-heading,
+.activity-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.activity-tabs {
+  justify-content: flex-start;
+  border-bottom: 1px solid #c4d0c9;
+  padding-bottom: 0.6rem;
+}
+.activity-tabs button[aria-current="page"] {
+  background: #0c332b;
+  box-shadow: inset 0 -4px #f2c94c;
+}
+.next-stop {
+  background: #e5f3eb;
+  border-left: 6px solid #174d40;
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.next-stop h3 {
+  font-size: 1.5rem;
+  margin: 0.2rem 0;
+}
+.map-link {
+  display: inline-flex;
+  min-height: 56px;
+  align-items: center;
+  margin: 0.4rem 0.5rem 0.4rem 0;
+  font-weight: 700;
+}
+.checkin {
+  background: #943e08;
+  min-width: 160px;
+  font-size: 1.15rem;
+  font-weight: 750;
+}
+.stop {
+  background: white;
+  padding: 0.8rem 1rem;
+  margin: 0.7rem 0;
+  border-radius: 12px;
+  border: 1px solid #c4d0c9;
+}
+.stop-number {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #174d40;
+  color: white;
+  margin-right: 0.7rem;
+}
+.notice,
+.pending {
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  background: #e5f3eb;
+  font-weight: 650;
+}
+.pending {
+  background: #fff0cc;
+  color: #543200;
+}
+.attendance,
+.balance {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #d7dfda;
+}
+.senior {
+  font-size: 1.25rem;
+}
+.senior button,
+.senior a,
+.senior input,
+.senior select {
+  min-height: 60px;
+  font-size: 1.1rem;
+}
+.senior h2 {
+  font-size: 1.8rem;
+}
+.help-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fff0cc;
+  border: 2px solid #7a4c00;
+  border-radius: 12px;
+}
+textarea,
+select {
+  border: 2px solid #61766c;
+  border-radius: 8px;
+  padding: 0.6rem;
+  min-height: 52px;
+  width: 100%;
+  max-width: 100%;
+  font: inherit;
+}
+fieldset {
+  border: 1px solid #9dad9f;
+  border-radius: 10px;
+  margin: 1rem 0;
+}
+.check-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.check-option input {
+  display: inline;
+  width: 32px;
+}
+@media (max-width: 560px) {
+  main {
+    padding: 0.65rem;
+  }
+  header {
+    padding: 0.7rem;
+  }
+  h1 {
+    font-size: 1.6rem;
+  }
+  section,
+  form {
+    padding: 0.8rem;
+  }
+  .activity-heading {
+    align-items: flex-start;
+  }
+  .activity-tabs button {
+    flex: 1;
+    margin: 0.15rem;
+  }
+}

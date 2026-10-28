@@ -7,10 +7,37 @@ import { signal } from "@preact/signals";
 import { QueryClient, useQuery } from "@tanstack/preact-query";
 import QRCode from "qrcode";
 import { supabase as db } from "../../shared/supabase/client";
+import { TripActivity } from "./TripActivity";
+import {
+  cacheTripData,
+  clearAllLocalData,
+  clearTripData,
+  localDb,
+  readCachedTripData,
+} from "../offline/db";
 
 export const qc = new QueryClient();
 const thai = signal(false);
 const t = (en: string, th: string) => (thai.value ? th : en);
+type TripRow = {
+  id: string;
+  title: string;
+  base_currency: string;
+  status: string;
+  start_date: string;
+  end_date: string;
+  timezone: string;
+};
+function mayUseOfflineCache(error: unknown) {
+  const candidate = error as { status?: number; code?: string } | null;
+  return (
+    candidate?.status !== 401 &&
+    candidate?.status !== 403 &&
+    candidate?.code !== "42501" &&
+    candidate?.code !== "PGRST301" &&
+    (!navigator.onLine || !candidate?.status || candidate.status >= 500)
+  );
+}
 export function App() {
   const [uid, setUid] = useState<string>();
   const [error, setError] = useState("");
@@ -24,8 +51,17 @@ export function App() {
       setUid(s?.user.id);
       setQr("");
       qc.clear();
+      const previous = localStorage.getItem("travelmate-local-user");
+      if (previous && previous !== s?.user.id) void clearAllLocalData();
+      if (s?.user.id) localStorage.setItem("travelmate-local-user", s.user.id);
     });
-    void db.auth.getSession().then(({ data }) => setUid(data.session?.user.id));
+    void db.auth.getSession().then(({ data }) => {
+      const next = data.session?.user.id;
+      const previous = localStorage.getItem("travelmate-local-user");
+      if (previous && previous !== next) void clearAllLocalData();
+      if (next) localStorage.setItem("travelmate-local-user", next);
+      setUid(next);
+    });
     const resume = () => void qc.invalidateQueries();
     window.addEventListener("focus", resume);
     window.addEventListener("online", resume);
@@ -39,10 +75,22 @@ export function App() {
   const trips = useQuery({
     queryKey: ["trips", uid],
     enabled: !!uid,
-    queryFn: () =>
-      pages((from, to) =>
-        db.from("trips").select("*").order("id").range(from, to),
-      ),
+    queryFn: async () => {
+      try {
+        const rows = await pages((from, to) =>
+          db.from("trips").select("*").order("id").range(from, to),
+        );
+        if (uid) await cacheTripData(uid, "__dashboard__", "trips", rows);
+        return rows;
+      } catch (error) {
+        const cached =
+          uid && mayUseOfflineCache(error)
+            ? await readCachedTripData<TripRow[]>(uid, "__dashboard__", "trips")
+            : undefined;
+        if (cached) return cached;
+        throw error;
+      }
+    },
   });
   const members = useMembers(uid);
   const requests = useQuery({
@@ -65,6 +113,21 @@ export function App() {
           .range(from, to),
       ),
   });
+  useEffect(() => {
+    if (!trips.isSuccess || !trips.data) return;
+    const ids = new Set(trips.data.map((trip) => trip.id));
+    void (async () => {
+      const cached = await localDb.cached.toArray();
+      const queued = await localDb.outbox.toArray();
+      for (const tripId of new Set(
+        [...cached, ...queued]
+          .filter((row) => row.ownerId === uid)
+          .map((row) => row.tripId),
+      ))
+        if (tripId !== "__dashboard__" && !ids.has(tripId))
+          await clearTripData(tripId, uid);
+    })();
+  }, [trips.isSuccess, trips.data, uid]);
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -255,6 +318,14 @@ export function App() {
                 {trip.start_date} — {trip.end_date} · {trip.base_currency} ·{" "}
                 {trip.status}
               </p>
+              {uid && members.data && (
+                <TripActivity
+                  trip={trip}
+                  members={members.data}
+                  uid={uid}
+                  thai={thai.value}
+                />
+              )}
               <h3>{t("Travelers", "ผู้เดินทาง")}</h3>
               {members.data
                 ?.filter(

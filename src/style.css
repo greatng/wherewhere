@@ -1,0 +1,86 @@
+@import "tailwindcss";
+:root {
+  font-family: system-ui, sans-serif;
+  color: #173b32;
+  background: #faf8f3;
+  font-size: 18px;
+  line-height: 1.6;
+}
+body {
+  margin: 0;
+}
+header {
+  background: #174d40;
+  color: white;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+main {
+  max-width: 760px;
+  margin: auto;
+  padding: 1rem;
+}
+h1 {
+  font-size: 2rem;
+  font-weight: 750;
+}
+h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+h3 {
+  font-weight: 700;
+}
+section,
+form {
+  background: white;
+  border: 1px solid #c4d0c9;
+  border-radius: 16px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+label {
+  display: block;
+  margin: 0.8rem 0;
+}
+input {
+  border: 2px solid #61766c;
+  border-radius: 8px;
+  padding: 0.6rem;
+  display: block;
+  max-width: 100%;
+  min-height: 48px;
+}
+input[type="checkbox"] {
+  display: inline;
+  width: 48px;
+  vertical-align: middle;
+}
+button {
+  min-height: 56px;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  background: #174d40;
+  color: white;
+  margin: 0.3rem;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+a {
+  color: inherit;
+}
+*:focus-visible {
+  outline: 3px solid #b55c00;
+  outline-offset: 3px;
+}
+[role="alert"] {
+  color: #921d18;
+}
+img {
+  max-width: 100%;
+}

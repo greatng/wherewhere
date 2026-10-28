@@ -1,0 +1,28 @@
+project_id = "travelmate"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+enable_anonymous_sign_ins = true
+
+[auth.rate_limit]
+anonymous_users = 30
+
+[functions.invite-gateway]
+# Public preflight is intentional; redeem validates the user with auth.getUser().
+verify_jwt = false

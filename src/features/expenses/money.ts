@@ -1,5 +1,28 @@
 export type ParticipantShare = { memberId: string; owedMinor: number };
 
+export function currencyDigits(currency: string, locale: string) {
+  try {
+    return new Intl.NumberFormat(locale, { style: "currency", currency })
+      .resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return 2;
+  }
+}
+
+/** Parse a plain decimal amount into exact minor units, within the safe split range. */
+export function parseMajorAmount(value: string, currency: string, locale: string) {
+  const digits = currencyDigits(currency, locale);
+  if (!/^\d+(?:\.\d*)?$/.test(value)) throw new Error("Enter a valid amount.");
+  const [whole, fraction = ""] = value.split(".");
+  if (fraction.length > digits)
+    throw new Error(`Use up to ${digits} decimal places.`);
+  const amount = BigInt(whole) * 10n ** BigInt(digits) +
+    BigInt((fraction + "0".repeat(digits)).slice(0, digits) || "0");
+  if (amount > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new Error("Amount exceeds the supported limit.");
+  return amount;
+}
+
 /** Divide minor currency units equally; earlier members receive the remainder. */
 export function splitAmount(
   amountMinor: number,

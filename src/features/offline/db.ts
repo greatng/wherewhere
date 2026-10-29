@@ -11,7 +11,10 @@ export type CachedTripData = {
     | "trips"
     | "checkins"
     | "settlements"
-    | "balances";
+    | "balances"
+    | "nightly_plan"
+    | "stays"
+    | "plan_activities";
   payload: unknown;
   savedAt: number;
 };

@@ -183,6 +183,8 @@ export function App() {
                 "ติดตั้งแอปก่อน แล้วเปิดคำเชิญในแอปที่ติดตั้ง บัญชีในเบราว์เซอร์อาจต่างจากแอป",
               )}
             </p>
+            <details class="create-trip">
+            <summary>{t("Create a trip", "สร้างทริป")}</summary>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -209,6 +211,7 @@ export function App() {
                 {t("Request to join", "ขอเข้าร่วม")}
               </button>
             </form>
+            </details>
           </section>
         ) : null}
         {!uid && !route.startsWith("#/join/") && (
@@ -350,6 +353,8 @@ export function App() {
                 ))}
               {org && (
                 <>
+                  <details class="trip-settings">
+                  <summary>{t("Trip settings and access", "ตั้งค่าทริปและการเข้าถึง")}</summary>
                   <button
                     disabled={busy || trip.status !== "active"}
                     onClick={() =>
@@ -451,6 +456,16 @@ export function App() {
                   >
                     {t("Archive trip", "เก็บทริป")}
                   </button>
+                  {trip.status === "archived" && <button disabled={busy} onClick={() => void run(async () => { await rpc("restore_trip", { p_trip_id: trip.id }); })}>{t("Restore trip", "กู้คืนทริป")}</button>}
+                  <details class="danger-zone">
+                    <summary>{t("Permanently delete trip…", "ลบทริปถาวร…")}</summary>
+                    <p>{t("This permanently removes the trip, its itinerary, expenses, members, and stay details. Type the trip title to confirm.", "การดำเนินการนี้จะลบทริป กำหนดการ ค่าใช้จ่าย สมาชิก และข้อมูลที่พักถาวร กรุณาพิมพ์ชื่อทริปเพื่อยืนยัน")}</p>
+                    <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); if (f.get("confirmTitle") !== trip.title) { setError(t("The title does not match.", "ชื่อทริปไม่ตรงกัน")); return; } void run(async () => { await rpc("delete_trip", { p_trip_id: trip.id, p_confirmation_title: f.get("confirmTitle") }); }); }}>
+                      <label>{t("Trip title", "ชื่อทริป")}<input name="confirmTitle" required autoComplete="off" /></label>
+                      <button class="danger-button" disabled={busy}>{t("Delete permanently", "ลบถาวร")}</button>
+                    </form>
+                  </details>
+                  </details>
                 </>
               )}
             </section>

@@ -1,6 +1,8 @@
-# TravelMate — M1 through M4
+# TravelMate — M1 through M4 and Phase 1
 
 Preact/TypeScript PWA for small group trips. Travelers join through an expiring QR invitation, receive a persistent Supabase anonymous session, and wait for organizer approval. Approved travelers share an itinerary, arrival check-ins, and expenses with deterministic whole-unit splits and suggested settlements. Itinerary and expense data can be cached on the device, and check-ins/expenses created offline are queued for retry when connectivity returns. English/Thai labels, 18px text and 56px buttons are included. No identity is created on launch.
+
+Phase 1 adds nightly city/date ranges and accommodation, daily activities with transport, expense date/time and correction, and trip archive/restore. The trip workspace presents Today, Plan, Expenses, and Trip sections for mobile use. Existing trip data remains readable after archiving; restoring a trip does not restore invitations that were revoked during archive.
 
 ## Run locally
 
@@ -23,7 +25,17 @@ Serve the invite gateway with a local untracked secrets file containing `APP_ORI
 supabase functions serve invite-gateway --env-file .env.functions
 ```
 
-For hosting, apply migrations with `supabase db push`, configure the two function secrets, then `supabase functions deploy invite-gateway`. Build with `npm run build` and serve `dist` over HTTPS at the origin root. The service worker caches public assets only; it never caches API responses or private trip data. Static hosting should set a CSP restricting scripts to self and connections to your Supabase endpoint, `Referrer-Policy: no-referrer`, and `X-Content-Type-Options: nosniff`.
+For a new hosted project, link the local Supabase directory to the project and apply migrations with `supabase db push`; then configure the Edge Function secrets and deploy `invite-gateway`:
+
+```sh
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+supabase secrets set APP_ORIGIN=https://YOUR_APP_ORIGIN INVITE_RATE_LIMIT_SECRET="$(openssl rand -hex 32)"
+supabase functions deploy invite-gateway
+```
+
+For an existing hosted project initialized by manually running migrations `001` and `002`, back up the database, review [migration `003`](supabase/migrations/202610280003_daily_planning.sql), and run that SQL script once in the SQL Editor for the intended hosted project. Do not rerun `001` or `002`, and do not use `supabase db push` unless this project already has matching entries in Supabase migration history; otherwise the CLI may treat the earlier scripts as pending. After `003` finishes, refresh the Supabase API schema cache (run `NOTIFY pgrst, 'reload schema';` in the SQL Editor) so the new tables and RPCs are available to the app. For projects managed by the Supabase CLI with migration history in sync, use `supabase migration list` to confirm the remote history, back up and review pending SQL, then run `supabase db push`; it applies migrations not recorded as applied remotely. If `003` was already applied manually, compare the live schema and migration history and reconcile the history before using the CLI; do not rerun the SQL or mark a migration applied just to bypass a schema mismatch. After deployment, verify Auth anonymous sign-in, the `invite-gateway` secrets, and the app URL/redirect allowlist. Build with `npm run build` and serve `dist` over HTTPS at the origin root. The service worker caches public assets only; it never caches API responses or private trip data. Static hosting should set a CSP restricting scripts to self and connections to your Supabase endpoint, `Referrer-Policy: no-referrer`, and `X-Content-Type-Options: nosniff`.
 
 ## First organizer
 
@@ -52,6 +64,6 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The database tests execute the actual migrations in PGlite (PostgreSQL WASM), with Auth roles and `auth.uid()` emulated. They check membership isolation, unauthorized operations, invite handling, itinerary/check-in access, and expense integrity. Playwright runs an enrolled itinerary/expense flow in desktop and mobile Chromium against deterministic mocked Supabase responses. It also checks form labels and captures fixture-backed preview screenshots in `artifacts/`; those images are previews, not evidence of a live Supabase session or production data. These checks do not replace testing deployed Supabase Auth and Edge networking.
+The database tests execute the actual migrations in PGlite (PostgreSQL WASM), with Auth roles and `auth.uid()` emulated. They check membership isolation, unauthorized operations, invite handling, itinerary/check-in access, and expense integrity. Playwright exercises trip creation, a three-night plan range and middle-night edit, lodging, activities and transport, expense date/time and correction, trip archive/restore, delete confirmation, and offline check-in in desktop and mobile Chromium against deterministic mocked Supabase responses. It checks form labels and captures Today, Plan, Expenses, and Trip previews in both viewports under a fixed trip date in `artifacts/`; those images are previews, not evidence of a live Supabase session or production data. These checks do not replace testing deployed Supabase Auth and Edge networking.
 
 Manual acceptance before release: use separate organizer and traveler browser profiles; request approval; confirm traveler cannot see a trip until approved; revoke an invite; reload both sessions; remove a traveler and refresh; test offline entry and recovery after going online; install the production build on iOS and Android and repeat enrollment/relaunch. Real-device storage separation, push/install behavior, and the hosted Auth/Edge flow have not been verified by the browser fixture. Sessions remain recoverable only while local auth storage survives.

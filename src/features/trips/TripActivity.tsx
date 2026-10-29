@@ -10,9 +10,14 @@ import {
 } from "../offline/db";
 import {
   calculateBalances,
+  currencyDigits,
+  parseMajorAmount,
   splitAmount,
   suggestSettlements,
 } from "../expenses/money";
+import Plan from "../plan/Plan";
+import { tripWallTimeToIso } from "../plan/timezone";
+import { formatDateLabel } from "../plan/dates";
 
 type Member = {
   id: string;
@@ -54,6 +59,9 @@ type Expense = {
   currency: string;
   description: string;
   created_at: string;
+  expense_date?: string | null;
+  expense_time?: string | null;
+  version?: number;
   shares?: { trip_member_id: string; owed_minor: number | string }[];
 };
 type BalanceRow = { trip_member_id: string; net_minor: string };
@@ -64,6 +72,26 @@ type Settlement = {
   amount_minor: string;
   status: string;
 };
+type ExpenseRevision = {
+  id: string;
+  expense_id: string;
+  changed_at: string;
+  previous_version: number;
+  previous_values: {
+    expense?: {
+      amount_minor: number | string;
+      currency: string;
+      description: string;
+    };
+  };
+  result_values: {
+    expense?: {
+      amount_minor: number | string;
+      currency: string;
+      description: string;
+    };
+  } | null;
+};
 type EmergencyCardData = {
   trip_id: string;
   hotel_name: string | null;
@@ -72,12 +100,23 @@ type EmergencyCardData = {
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
 };
-function localDateTime(value: string) {
-  const d = new Date(value);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
-}
+type NightDestination = {
+  trip_id: string;
+  night_date: string;
+  city: string;
+  transport_mode: string | null;
+  version: number;
+};
+type StaySummary = {
+  id: string;
+  trip_id: string;
+  check_in_date: string;
+  check_out_date: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  version: number;
+};
 const id = () => crypto.randomUUID();
 const errText = (e: unknown) =>
   e instanceof Error ? e.message : "Please try again when connected.";
@@ -117,6 +156,31 @@ function formatMinor(
   const formatted = new Intl.NumberFormat(locale).format(major);
   return `${value < 0n ? "−" : ""}${formatted}${fraction} ${currency}`;
 }
+function minorToMajorInput(
+  amount: bigint | number | string,
+  currency: string,
+  locale: string,
+) {
+  const digits = currencyDigits(currency, locale);
+  const value = BigInt(amount);
+  const scale = 10n ** BigInt(digits);
+  const whole = value / scale;
+  if (!digits) return whole.toString();
+  return `${whole}.${(value % scale).toString().padStart(digits, "0")}`;
+}
+function toTripLocal(value: string, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value));
+  const p = Object.fromEntries(parts.map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
 
 export function TripActivity({
   trip,
@@ -136,7 +200,9 @@ export function TripActivity({
   const tripMembers = members.filter((m) => m.trip_id === trip.id);
   const me = approved.find((m) => m.user_id === uid);
   const organizer = me?.role === "organizer";
-  const [tab, setTab] = useState<"today" | "expenses">("today");
+  const [tab, setTab] = useState<"today" | "plan" | "expenses" | "trip">(
+    "today",
+  );
   const [senior, setSenior] = useState(false);
   const [editing, setEditing] = useState<Item | null>(null);
   const [notice, setNotice] = useState("");
@@ -214,6 +280,20 @@ export function TripActivity({
       return rows as Expense[];
     },
   });
+  const expenseRevisionsQuery = useQuery({
+    queryKey: ["expense-revisions", uid, trip.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("expense_revisions")
+        .select(
+          "id,expense_id,changed_at,previous_version,previous_values,result_values",
+        )
+        .eq("trip_id", trip.id)
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ExpenseRevision[];
+    },
+  });
   const checkInsQuery = useQuery({
     queryKey: ["checkins", uid, trip.id],
     queryFn: async () => {
@@ -236,6 +316,84 @@ export function TripActivity({
       const rows = data ?? [];
       await cacheTripData(uid, trip.id, "checkins", rows);
       return rows;
+    },
+  });
+  const tonightDate = (() => {
+    const date = new Intl.DateTimeFormat("en-CA", {
+      timeZone: trip.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    return date < trip.start_date
+      ? trip.start_date
+      : date > trip.end_date
+        ? trip.end_date
+        : date;
+  })();
+  const tripToday = new Intl.DateTimeFormat("en-CA", {
+    timeZone: trip.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const tonightLabel =
+    tripToday < trip.start_date
+      ? tr("First planned night", "คืนแรกตามแผน")
+      : tripToday > trip.end_date
+        ? tr("Last planned night", "คืนสุดท้ายตามแผน")
+        : tr("Tonight", "คืนนี้");
+  const tonightQuery = useQuery({
+    queryKey: ["tonight", uid, trip.id],
+    queryFn: async () => {
+      const [
+        { data: nights, error: nightError },
+        { data: stays, error: stayError },
+      ] = await Promise.all([
+        supabase
+          .from("nightly_destinations")
+          .select("*")
+          .eq("trip_id", trip.id)
+          .order("night_date"),
+        supabase
+          .from("stays")
+          .select("*")
+          .eq("trip_id", trip.id)
+          .order("check_in_date"),
+      ]);
+      if (
+        (nightError && mayUseOfflineCache(nightError)) ||
+        (stayError && mayUseOfflineCache(stayError))
+      ) {
+        const [cachedNights, cachedStays] = await Promise.all([
+          readCachedTripData<NightDestination[]>(uid, trip.id, "nightly_plan"),
+          readCachedTripData<StaySummary[]>(uid, trip.id, "stays"),
+        ]);
+        if (cachedNights || cachedStays)
+          return {
+            night: cachedNights?.find((x) => x.night_date === tonightDate),
+            stay: cachedStays?.find(
+              (x) =>
+                x.check_in_date <= tonightDate &&
+                x.check_out_date > tonightDate,
+            ),
+          };
+      }
+      if (nightError) throw nightError;
+      if (stayError) throw stayError;
+      const nightRows = (nights ?? []) as NightDestination[];
+      const stayRows = (stays ?? []) as StaySummary[];
+      await Promise.all([
+        cacheTripData(uid, trip.id, "nightly_plan", nightRows),
+        cacheTripData(uid, trip.id, "stays", stayRows),
+      ]);
+      return {
+        night: nightRows.find((x) => x.night_date === tonightDate),
+        stay: stayRows.find(
+          (x) =>
+            x.check_in_date <= tonightDate && x.check_out_date > tonightDate,
+        ),
+      };
     },
   });
   const settlementsQuery = useQuery({
@@ -405,11 +563,14 @@ export function TripActivity({
     e.preventDefault();
     setNotice("");
     const f = new FormData(e.currentTarget as HTMLFormElement);
-    const starts = f.get("starts") as string;
+    const date = String(f.get("date") || "");
+    const time = String(f.get("time") || "");
+    const starts =
+      date && time ? tripWallTimeToIso(`${date}T${time}`, trip.timezone) : null;
     const { error } = await supabase.rpc("upsert_itinerary_item", {
       p_trip_id: trip.id,
       p_title: f.get("title"),
-      p_starts_at: starts ? new Date(starts).toISOString() : null,
+      p_starts_at: starts,
       p_address: f.get("address") || null,
       p_meeting_info: f.get("meeting") || null,
       p_notes: f.get("notes") || null,
@@ -417,6 +578,7 @@ export function TripActivity({
       p_position: editing?.position ?? items.length,
       p_item_id: editing?.id ?? null,
       p_expected_version: editing?.version ?? null,
+      p_plan_date: date || null,
     });
     if (error) {
       setNotice(
@@ -532,24 +694,34 @@ export function TripActivity({
     const selected = approved
       .filter((m) => f.get(`share-${m.id}`) === "on")
       .map((m) => m.id);
-    const amount = Number(f.get("amount"));
     try {
-      if (!Number.isSafeInteger(amount))
+      const amount = parseMajorAmount(
+        String(f.get("amount")),
+        trip.base_currency,
+        thai ? "th-TH" : "en",
+      );
+      if (amount <= 0n)
+        throw new Error(
+          tr("Amount must be greater than zero.", "จำนวนเงินต้องมากกว่าศูนย์"),
+        );
+      if (amount > BigInt(Number.MAX_SAFE_INTEGER))
         throw new Error(
           tr(
-            "Amount exceeds the safe supported limit.",
+            "Amount exceeds the supported limit.",
             "จำนวนเงินเกินขีดจำกัดที่รองรับ",
           ),
         );
-      const shares = splitAmount(amount, selected);
+      const shares = splitAmount(Number(amount), selected);
       const payer = String(f.get("payer"));
       const op = id();
       const payload = {
         p_trip_id: trip.id,
         p_payer_member_id: payer,
-        p_amount_minor: String(amount),
+        p_amount_minor: amount.toString(),
         p_currency: trip.base_currency,
         p_description: String(f.get("description")),
+        p_expense_date: f.get("expenseDate") || null,
+        p_expense_time: f.get("expenseTime") || null,
         p_shares: shares.map((s) => ({
           member_id: s.memberId,
           owed_minor: String(s.owedMinor),
@@ -574,6 +746,60 @@ export function TripActivity({
       if (navigator.onLine) window.dispatchEvent(new Event("travelmate-sync"));
     } catch (e) {
       setNotice(errText(e));
+    }
+  }
+  async function correctExpense(e: Event, expense: Expense) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget as HTMLFormElement);
+    try {
+      const amount = parseMajorAmount(
+        String(f.get("amount")),
+        expense.currency,
+        thai ? "th-TH" : "en",
+      );
+      if (amount <= 0n || amount > BigInt(Number.MAX_SAFE_INTEGER))
+        throw new Error(
+          tr("Enter a valid supported amount.", "กรุณากรอกจำนวนเงินที่รองรับ"),
+        );
+      const selected = approved
+        .filter((m) => f.get(`share-${m.id}`) === "on")
+        .map((m) => m.id);
+      const { error } = await supabase.rpc("correct_expense", {
+        p_trip_id: trip.id,
+        p_expense_id: expense.id,
+        p_expected_version: expense.version ?? 1,
+        p_payer_member_id: String(f.get("payer")),
+        p_amount_minor: amount.toString(),
+        p_currency: expense.currency,
+        p_description: String(f.get("description")),
+        p_shares: splitAmount(Number(amount), selected).map((s) => ({
+          member_id: s.memberId,
+          owed_minor: String(s.owedMinor),
+        })),
+        p_operation_id: id(),
+        p_expense_date: f.get("expenseDate") || null,
+        p_expense_time: f.get("expenseTime") || null,
+      });
+      if (error) throw error;
+      setNotice(tr("Expense corrected.", "แก้ไขค่าใช้จ่ายแล้ว"));
+      await Promise.all([
+        expensesQuery.refetch(),
+        expenseRevisionsQuery.refetch(),
+        serverBalancesQuery.refetch(),
+      ]);
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code: unknown }).code)
+          : "";
+      setNotice(
+        code === "40001"
+          ? tr(
+              "This expense changed elsewhere. Refresh and review the latest version.",
+              "ค่าใช้จ่ายนี้ถูกแก้ไขจากอุปกรณ์อื่น กรุณารีเฟรชและตรวจสอบข้อมูลล่าสุด",
+            )
+          : errText(error),
+      );
     }
   }
   const now = Date.now();
@@ -638,7 +864,14 @@ export function TripActivity({
           aria-current={tab === "today" ? "page" : undefined}
           onClick={() => setTab("today")}
         >
-          {tr("Today & check-in", "วันนี้และเช็กอิน")}
+          {tr("Today", "วันนี้")}
+        </button>
+        <button
+          type="button"
+          aria-current={tab === "plan" ? "page" : undefined}
+          onClick={() => setTab("plan")}
+        >
+          {tr("Plan", "แผนการเดินทาง")}
         </button>
         <button
           type="button"
@@ -647,8 +880,25 @@ export function TripActivity({
         >
           {tr("Expenses", "ค่าใช้จ่าย")}
         </button>
+        <button
+          type="button"
+          aria-current={tab === "trip" ? "page" : undefined}
+          onClick={() => setTab("trip")}
+        >
+          {tr("Trip", "ทริป")}
+        </button>
       </nav>
-      {tab === "today" ? (
+      {(tab === "today" || tab === "trip") && (
+        <EmergencyCard
+          tripId={trip.id}
+          organizer={organizer}
+          thai={thai}
+          ownerId={uid}
+        />
+      )}
+      {tab === "plan" ? (
+        <Plan trip={trip} uid={uid} thai={thai} organizer={organizer} />
+      ) : tab === "today" ? (
         <>
           <div class="next-stop">
             <strong>{tr("Next destination", "จุดหมายถัดไป")}</strong>
@@ -659,7 +909,11 @@ export function TripActivity({
                   {upcoming.starts_at
                     ? new Date(upcoming.starts_at).toLocaleString(
                         thai ? "th-TH" : "en",
-                        { dateStyle: "medium", timeStyle: "short" },
+                        {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                          timeZone: trip.timezone,
+                        },
                       )
                     : tr("Time to be confirmed", "รอยืนยันเวลา")}
                 </p>
@@ -691,6 +945,40 @@ export function TripActivity({
               <p>{tr("No stops added yet.", "ยังไม่มีจุดหมาย")}</p>
             )}
           </div>
+          <section
+            class="tonight-card"
+            aria-label={tr(
+              "Tonight destination and accommodation",
+              "เมืองและที่พักคืนนี้",
+            )}
+          >
+            <strong>{tonightLabel}</strong>
+            {tonightLabel !== tr("Tonight", "คืนนี้") && (
+              <time dateTime={tonightDate}>
+                {formatDateLabel(tonightDate, thai ? "th-TH" : "en")}
+              </time>
+            )}
+            <p>
+              {tonightQuery.data?.night?.city ??
+                tr("City not set yet", "ยังไม่ได้กำหนดเมือง")}
+            </p>
+            {tonightQuery.data?.stay ? (
+              <>
+                <strong>{tonightQuery.data.stay.name}</strong>
+                {tonightQuery.data.stay.address && (
+                  <p>{tonightQuery.data.stay.address}</p>
+                )}
+                {tonightQuery.data.stay.phone && (
+                  <a href={`tel:${tonightQuery.data.stay.phone}`}>
+                    {tr("Call accommodation", "โทรหาที่พัก")}:{" "}
+                    {tonightQuery.data.stay.phone}
+                  </a>
+                )}
+              </>
+            ) : (
+              <p>{tr("Accommodation not set yet", "ยังไม่ได้กำหนดที่พัก")}</p>
+            )}
+          </section>
           <h3>{tr("Itinerary", "กำหนดการเดินทาง")}</h3>
           {itineraryQuery.isError && (
             <p role="alert">
@@ -710,7 +998,11 @@ export function TripActivity({
                 <p>
                   {new Date(item.starts_at).toLocaleString(
                     thai ? "th-TH" : "en",
-                    { dateStyle: "medium", timeStyle: "short" },
+                    {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                      timeZone: trip.timezone,
+                    },
                   )}
                 </p>
               )}
@@ -734,69 +1026,104 @@ export function TripActivity({
             </article>
           ))}
           {organizer && (
-            <form key={editing?.id ?? "new-stop"} onSubmit={saveItem}>
-              <h3>
+            <details class="stop-editor" open={!!editing}>
+              <summary>
                 {editing
                   ? tr("Edit stop", "แก้ไขจุดหมาย")
                   : tr("Add a stop", "เพิ่มจุดหมาย")}
-              </h3>
-              <label>
-                {tr("Place or activity", "สถานที่หรือกิจกรรม")}
-                <input
-                  required
-                  name="title"
-                  maxLength={160}
-                  defaultValue={editing?.title}
-                />
-              </label>
-              <label>
-                {tr(
-                  "Date and time (device timezone)",
-                  "วันและเวลา (เขตเวลาของอุปกรณ์)",
-                )}
-                <input
-                  name="starts"
-                  type="datetime-local"
-                  defaultValue={
-                    editing?.starts_at ? localDateTime(editing.starts_at) : ""
-                  }
-                />
-              </label>
-              <label>
-                {tr("Address", "ที่อยู่")}
-                <input
-                  name="address"
-                  maxLength={500}
-                  defaultValue={editing?.address ?? ""}
-                />
-              </label>
-              <label>
-                {tr("Meeting point", "จุดนัดพบ")}
-                <input
-                  name="meeting"
-                  maxLength={300}
-                  defaultValue={editing?.meeting_info ?? ""}
-                />
-              </label>
-              <label>
-                {tr("Notes", "หมายเหตุ")}
-                <textarea
-                  name="notes"
-                  maxLength={1000}
-                  defaultValue={editing?.notes ?? ""}
-                />
-              </label>
-              <label>
-                {tr("Transport", "การเดินทาง")}
-                <select
-                  name="transport"
-                  defaultValue={editing?.transport_mode ?? ""}
-                >
-                  <option value="">
-                    {tr("Choose (optional)", "เลือก (ไม่บังคับ)")}
-                  </option>
-                  {["walk", "car", "taxi", "bus", "train", "boat", "other"].map(
-                    (x) => (
+              </summary>
+              <form key={editing?.id ?? "new-stop"} onSubmit={saveItem}>
+                <h3>
+                  {editing
+                    ? tr("Edit stop", "แก้ไขจุดหมาย")
+                    : tr("Add a stop", "เพิ่มจุดหมาย")}
+                </h3>
+                <label>
+                  {tr("Place or activity", "สถานที่หรือกิจกรรม")}
+                  <input
+                    required
+                    name="title"
+                    maxLength={160}
+                    defaultValue={editing?.title}
+                  />
+                </label>
+                <label>
+                  {tr("Day", "วันที่")}
+                  <input
+                    name="date"
+                    type="date"
+                    min={trip.start_date}
+                    max={trip.end_date}
+                    defaultValue={
+                      editing?.starts_at
+                        ? toTripLocal(editing.starts_at, trip.timezone).slice(
+                            0,
+                            10,
+                          )
+                        : trip.start_date
+                    }
+                  />
+                </label>
+                <label>
+                  {tr(
+                    "Time in trip timezone (optional)",
+                    "เวลาในเขตเวลาของทริป (ไม่บังคับ)",
+                  )}
+                  <input
+                    name="time"
+                    type="time"
+                    defaultValue={
+                      editing?.starts_at
+                        ? toTripLocal(editing.starts_at, trip.timezone).slice(
+                            11,
+                          )
+                        : ""
+                    }
+                  />
+                </label>
+                <p>{trip.timezone}</p>
+                <label>
+                  {tr("Address", "ที่อยู่")}
+                  <input
+                    name="address"
+                    maxLength={500}
+                    defaultValue={editing?.address ?? ""}
+                  />
+                </label>
+                <label>
+                  {tr("Meeting point", "จุดนัดพบ")}
+                  <input
+                    name="meeting"
+                    maxLength={300}
+                    defaultValue={editing?.meeting_info ?? ""}
+                  />
+                </label>
+                <label>
+                  {tr("Notes", "หมายเหตุ")}
+                  <textarea
+                    name="notes"
+                    maxLength={1000}
+                    defaultValue={editing?.notes ?? ""}
+                  />
+                </label>
+                <label>
+                  {tr("Transport", "การเดินทาง")}
+                  <select
+                    name="transport"
+                    defaultValue={editing?.transport_mode ?? ""}
+                  >
+                    <option value="">
+                      {tr("Choose (optional)", "เลือก (ไม่บังคับ)")}
+                    </option>
+                    {[
+                      "walk",
+                      "car",
+                      "taxi",
+                      "bus",
+                      "train",
+                      "boat",
+                      "other",
+                    ].map((x) => (
                       <option value={x}>
                         {tr(
                           x,
@@ -813,17 +1140,17 @@ export function TripActivity({
                           )[x],
                         )}
                       </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <button>{tr("Save stop", "บันทึกจุดหมาย")}</button>
-              {editing && (
-                <button type="button" onClick={() => setEditing(null)}>
-                  {tr("Cancel", "ยกเลิก")}
-                </button>
-              )}
-            </form>
+                    ))}
+                  </select>
+                </label>
+                <button>{tr("Save stop", "บันทึกจุดหมาย")}</button>
+                {editing && (
+                  <button type="button" onClick={() => setEditing(null)}>
+                    {tr("Cancel", "ยกเลิก")}
+                  </button>
+                )}
+              </form>
+            </details>
           )}
           <h3>{tr("Who's checked in", "ใครเช็กอินแล้ว")}</h3>
           {checkInsQuery.isError ? (
@@ -863,50 +1190,92 @@ export function TripActivity({
             </>
           )}
         </>
-      ) : (
+      ) : tab === "expenses" ? (
         <>
-          <h3>{tr("Add shared expense", "เพิ่มค่าใช้จ่ายส่วนกลาง")}</h3>
-          <p>
-            {tr(
-              "Enter whole minor units (THB: satang). The split uses whole units; any remainder goes to the first selected travelers.",
-              "กรอกจำนวนหน่วยย่อยเป็นจำนวนเต็ม (THB: สตางค์) เศษที่หารไม่ลงตัวจะเพิ่มให้ผู้เดินทางที่เลือกคนแรก",
-            )}
-          </p>
-          <form onSubmit={saveExpense}>
-            <label>
-              {tr("What was it for?", "ค่าอะไร")}
-              <input name="description" required maxLength={240} />
-            </label>
-            <label>
+          <details class="expense-entry">
+            <summary>
+              {tr("Add shared expense", "เพิ่มค่าใช้จ่ายส่วนกลาง")}
+            </summary>
+            <h3>{tr("Add shared expense", "เพิ่มค่าใช้จ่ายส่วนกลาง")}</h3>
+            <p>
               {tr(
-                `Amount in minor units (${trip.base_currency}${trip.base_currency === "THB" ? " satang" : ""})`,
-                `จำนวนหน่วยย่อย (${trip.base_currency}${trip.base_currency === "THB" ? " สตางค์" : ""})`,
+                "Enter the amount in the trip currency. Splits use the smallest currency unit; any remainder goes to the first selected traveler.",
+                "กรอกจำนวนเงินตามสกุลเงินของทริป เศษจากการหารจะแบ่งให้ผู้เดินทางคนแรกที่เลือก",
               )}
-              <input name="amount" type="number" min="1" step="1" required />
-            </label>
-            <label>
-              {tr("Paid by", "ผู้จ่าย")}
-              <select name="payer" required>
+            </p>
+            <form onSubmit={saveExpense}>
+              <label>
+                {tr("What was it for?", "ค่าอะไร")}
+                <input name="description" required maxLength={240} />
+              </label>
+              <label>
+                {tr(
+                  `Amount (${trip.base_currency})`,
+                  `จำนวนเงิน (${trip.base_currency})`,
+                )}
+                <input
+                  name="amount"
+                  type="number"
+                  min="0.01"
+                  step={
+                    currencyDigits(
+                      trip.base_currency,
+                      thai ? "th-TH" : "en",
+                    ) === 0
+                      ? "1"
+                      : `0.${"0".repeat(Math.max(0, currencyDigits(trip.base_currency, thai ? "th-TH" : "en") - 1))}1`
+                  }
+                  inputMode="decimal"
+                  required
+                />
+              </label>
+              <label>
+                {tr("Date (optional)", "วันที่ (ไม่บังคับ)")}
+                <input
+                  name="expenseDate"
+                  type="date"
+                  onInput={(event) => {
+                    const time = event.currentTarget.form?.elements.namedItem(
+                      "expenseTime",
+                    ) as HTMLInputElement | null;
+                    if (time) {
+                      time.disabled = !event.currentTarget.value;
+                      if (!event.currentTarget.value) time.value = "";
+                    }
+                  }}
+                />
+              </label>
+              <label>
+                {tr(
+                  "Time (optional, requires date)",
+                  "เวลา (ไม่บังคับ ต้องเลือกวันที่ก่อน",
+                )}
+                <input name="expenseTime" type="time" disabled />
+              </label>
+              <label>
+                {tr("Paid by", "ผู้จ่าย")}
+                <select name="payer" required>
+                  {approved.map((m) => (
+                    <option value={m.id}>{m.display_name}</option>
+                  ))}
+                </select>
+              </label>
+              <fieldset>
+                <legend>{tr("Split between", "หารระหว่าง")}</legend>
                 {approved.map((m) => (
-                  <option value={m.id}>{m.display_name}</option>
+                  <label class="check-option">
+                    <input
+                      type="checkbox"
+                      name={`share-${m.id}`}
+                      defaultChecked
+                    />
+                    {m.display_name}
+                  </label>
                 ))}
-              </select>
-            </label>
-            <fieldset>
-              <legend>{tr("Split between", "หารระหว่าง")}</legend>
-              {approved.map((m) => (
-                <label class="check-option">
-                  <input
-                    type="checkbox"
-                    name={`share-${m.id}`}
-                    defaultChecked
-                  />
-                  {m.display_name}
-                </label>
-              ))}
-            </fieldset>
-            <button>{tr("Save expense", "บันทึกค่าใช้จ่าย")}</button>
-          </form>
+              </fieldset>
+              <button>{tr("Save expense", "บันทึกค่าใช้จ่าย")}</button>
+            </form>
+          </details>
           <h3>{tr("Balances", "ยอดคงเหลือ")}</h3>
           {tripMembers.map((m) => {
             const value = balances.get(m.id) ?? 0n;
@@ -992,6 +1361,14 @@ export function TripActivity({
               </p>
             ))}
           <h3>{tr("Recent expenses", "ค่าใช้จ่ายล่าสุด")}</h3>
+          {expenseRevisionsQuery.isError && (
+            <p role="status">
+              {tr(
+                "Correction history could not be refreshed.",
+                "โหลดประวัติการแก้ไขไม่สำเร็จ",
+              )}
+            </p>
+          )}
           {expenses.length ? (
             expenses.map((e) => (
               <article class="stop">
@@ -1008,6 +1385,12 @@ export function TripActivity({
                     thai ? "th-TH" : "en",
                   )}
                 </p>
+                {(e.expense_date || e.expense_time) && (
+                  <p>
+                    {e.expense_date}
+                    {e.expense_time ? ` · ${e.expense_time.slice(0, 5)}` : ""}
+                  </p>
+                )}
                 {e.shares?.map((s) => (
                   <small>
                     {
@@ -1023,20 +1406,186 @@ export function TripActivity({
                     ·{" "}
                   </small>
                 ))}
+                {expenseRevisionsQuery.data?.filter(
+                  (revision) => revision.expense_id === e.id,
+                ).length ? (
+                  <details class="expense-history">
+                    <summary>
+                      {tr("Correction history", "ประวัติการแก้ไข")}
+                    </summary>
+                    {expenseRevisionsQuery.data
+                      .filter((revision) => revision.expense_id === e.id)
+                      .map((revision) => {
+                        const previous = revision.previous_values.expense;
+                        const corrected = revision.result_values?.expense ?? e;
+                        return (
+                          <p key={revision.id}>
+                            {new Date(revision.changed_at).toLocaleString(
+                              thai ? "th-TH" : "en",
+                              {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                                timeZone: trip.timezone,
+                              },
+                            )}
+                            {previous && (
+                              <>
+                                <br />
+                                {tr("Amount", "จำนวนเงิน")}:{" "}
+                                {formatMinor(
+                                  previous.amount_minor,
+                                  previous.currency,
+                                  thai ? "th-TH" : "en",
+                                )}{" "}
+                                →{" "}
+                                {formatMinor(
+                                  corrected.amount_minor,
+                                  corrected.currency,
+                                  thai ? "th-TH" : "en",
+                                )}
+                                {previous.description !==
+                                corrected.description ? (
+                                  <>
+                                    <br />
+                                    {tr("Description", "รายละเอียด")}:{" "}
+                                    {previous.description} →{" "}
+                                    {corrected.description}
+                                  </>
+                                ) : null}
+                              </>
+                            )}
+                          </p>
+                        );
+                      })}
+                  </details>
+                ) : null}
+                {organizer && (
+                  <details>
+                    <summary>
+                      {tr("Correct expense", "แก้ไขค่าใช้จ่าย")}
+                    </summary>
+                    <form onSubmit={(event) => void correctExpense(event, e)}>
+                      <label>
+                        {tr("Description", "รายละเอียด")}
+                        <input
+                          name="description"
+                          required
+                          maxLength={240}
+                          defaultValue={e.description}
+                        />
+                      </label>
+                      <label>
+                        {tr(
+                          `Amount (${e.currency})`,
+                          `จำนวนเงิน (${e.currency})`,
+                        )}
+                        <input
+                          name="amount"
+                          type="number"
+                          min="0.01"
+                          step={
+                            currencyDigits(
+                              e.currency,
+                              thai ? "th-TH" : "en",
+                            ) === 0
+                              ? "1"
+                              : `0.${"0".repeat(Math.max(0, currencyDigits(e.currency, thai ? "th-TH" : "en") - 1))}1`
+                          }
+                          required
+                          defaultValue={minorToMajorInput(
+                            e.amount_minor,
+                            e.currency,
+                            thai ? "th-TH" : "en",
+                          )}
+                        />
+                      </label>
+                      <label>
+                        {tr("Paid by", "ผู้จ่าย")}
+                        <select
+                          name="payer"
+                          required
+                          defaultValue={e.paid_by_member_id}
+                        >
+                          {approved.map((m) => (
+                            <option value={m.id}>{m.display_name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <fieldset>
+                        <legend>{tr("Split between", "หารระหว่าง")}</legend>
+                        {approved.map((m) => (
+                          <label class="check-option">
+                            <input
+                              type="checkbox"
+                              name={`share-${m.id}`}
+                              defaultChecked={e.shares?.some(
+                                (s) => s.trip_member_id === m.id,
+                              )}
+                            />
+                            {m.display_name}
+                          </label>
+                        ))}
+                      </fieldset>
+                      <label>
+                        {tr("Date (optional)", "วันที่ (ไม่บังคับ)")}
+                        <input
+                          name="expenseDate"
+                          type="date"
+                          defaultValue={e.expense_date ?? ""}
+                          onInput={(event) => {
+                            const time =
+                              event.currentTarget.form?.elements.namedItem(
+                                "expenseTime",
+                              ) as HTMLInputElement | null;
+                            if (time) {
+                              time.disabled = !event.currentTarget.value;
+                              if (!event.currentTarget.value) time.value = "";
+                            }
+                          }}
+                        />
+                      </label>
+                      <label>
+                        {tr("Time (optional)", "เวลา (ไม่บังคับ)")}
+                        <input
+                          name="expenseTime"
+                          type="time"
+                          defaultValue={e.expense_time?.slice(0, 5) ?? ""}
+                          disabled={!e.expense_date}
+                        />
+                      </label>
+                      <button>{tr("Save correction", "บันทึกการแก้ไข")}</button>
+                    </form>
+                  </details>
+                )}
               </article>
             ))
           ) : (
             <p>{tr("No expenses yet.", "ยังไม่มีค่าใช้จ่าย")}</p>
           )}
         </>
-      )}
-      {senior && (
-        <EmergencyCard
-          tripId={trip.id}
-          organizer={organizer}
-          thai={thai}
-          ownerId={uid}
-        />
+      ) : (
+        <>
+          <h3>{tr("Trip details", "รายละเอียดทริป")}</h3>
+          <p>
+            {trip.start_date} — {trip.end_date}
+          </p>
+          <p>
+            {tr("Time zone", "เขตเวลา")}: {trip.timezone}
+          </p>
+          <p>
+            {tr("Trip status", "สถานะทริป")}: {trip.status}
+          </p>
+          <h3>{tr("Travelers", "ผู้เดินทาง")}</h3>
+          {tripMembers.map((m) => (
+            <p class="attendance" key={m.id}>
+              {m.display_name}
+              {m.role === "organizer" ? ` · ${tr("Organizer", "ผู้จัด")}` : ""}
+              {m.status !== "approved"
+                ? ` · ${tr("removed", "นำออกแล้ว")}`
+                : ""}
+            </p>
+          ))}
+        </>
       )}
     </section>
   );
@@ -1077,9 +1626,9 @@ function EmergencyCard({
     const f = new FormData(e.currentTarget as HTMLFormElement);
     const { error } = await supabase.rpc("upsert_emergency_card", {
       p_trip_id: tripId,
-      p_hotel_name: f.get("hotel") || null,
-      p_hotel_address: f.get("address") || null,
-      p_hotel_phone: f.get("hotelPhone") || null,
+      p_hotel_name: card?.hotel_name ?? null,
+      p_hotel_address: card?.hotel_address ?? null,
+      p_hotel_phone: card?.hotel_phone ?? null,
       p_emergency_contact_name: f.get("contact") || null,
       p_emergency_contact_phone: f.get("phone") || null,
     });
@@ -1103,22 +1652,7 @@ function EmergencyCard({
   }
   return (
     <div class="help-card">
-      <strong>
-        {tr("Hotel & emergency contacts", "ที่พักและเบอร์ติดต่อฉุกเฉิน")}
-      </strong>
-      {card?.hotel_name && (
-        <p>
-          <strong>{card.hotel_name}</strong>
-          <br />
-          {card.hotel_address}
-          <br />
-          {card.hotel_phone && (
-            <a href={`tel:${card.hotel_phone}`}>
-              {tr("Call hotel", "โทรหาที่พัก")}: {card.hotel_phone}
-            </a>
-          )}
-        </p>
-      )}
+      <strong>{tr("Family contact", "ผู้ติดต่อในครอบครัว")}</strong>
       {card?.emergency_contact_name && (
         <p>
           {tr("Family contact", "ผู้ติดต่อในครอบครัว")}:{" "}
@@ -1133,25 +1667,9 @@ function EmergencyCard({
       {organizer && (
         <details>
           <summary>
-            {tr("Edit emergency details", "แก้ไขข้อมูลฉุกเฉิน")}
+            {tr("Edit family contact", "แก้ไขผู้ติดต่อในครอบครัว")}
           </summary>
           <form onSubmit={save}>
-            <label>
-              {tr("Hotel name", "ชื่อที่พัก")}
-              <input name="hotel" defaultValue={card?.hotel_name ?? ""} />
-            </label>
-            <label>
-              {tr("Hotel address", "ที่อยู่ที่พัก")}
-              <input name="address" defaultValue={card?.hotel_address ?? ""} />
-            </label>
-            <label>
-              {tr("Hotel phone", "โทรศัพท์ที่พัก")}
-              <input
-                name="hotelPhone"
-                type="tel"
-                defaultValue={card?.hotel_phone ?? ""}
-              />
-            </label>
             <label>
               {tr("Family contact", "ผู้ติดต่อในครอบครัว")}
               <input

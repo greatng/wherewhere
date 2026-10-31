@@ -1,3 +1,6 @@
+import type { User } from "@supabase/supabase-js";
+import { EmailAccess } from "../auth/EmailAccess";
+import { canCreateTrip } from "../auth/email";
 import { useMembers } from "../members/queries";
 import { pages } from "../../shared/supabase/pages";
 import { redeem } from "../invites/redeem";
@@ -40,6 +43,7 @@ function mayUseOfflineCache(error: unknown) {
 }
 export function App() {
   const [uid, setUid] = useState<string>();
+  const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState("");
@@ -49,6 +53,7 @@ export function App() {
     window.addEventListener("hashchange", routeChange);
     const { data } = db.auth.onAuthStateChange((_e, s) => {
       setUid(s?.user.id);
+      setUser(s?.user ?? null);
       setQr("");
       qc.clear();
       const previous = localStorage.getItem("travelmate-local-user");
@@ -61,6 +66,7 @@ export function App() {
       if (previous && previous !== next) void clearAllLocalData();
       if (next) localStorage.setItem("travelmate-local-user", next);
       setUid(next);
+      setUser(data.session?.user ?? null);
     });
     const resume = () => void qc.invalidateQueries();
     window.addEventListener("focus", resume);
@@ -184,33 +190,35 @@ export function App() {
               )}
             </p>
             <details class="create-trip">
-            <summary>{t("Create a trip", "สร้างทริป")}</summary>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                void run(async () => {
-                  await redeem(route.slice(7), f.get("name"));
-                  history.replaceState(null, "", location.pathname + "#");
-                  setRoute("#");
-                });
-              }}
-            >
-              <label>
-                {t("Your name", "ชื่อของคุณ")}
-                <input name="name" required maxLength={80} />
-              </label>
-              <label>
-                <input type="checkbox" required />
-                {t(
-                  "I am using the browser or installed app I will keep using.",
-                  "ฉันกำลังใช้แอปหรือเบราว์เซอร์ที่จะใช้ต่อไป",
-                )}
-              </label>
-              <button disabled={busy}>
-                {t("Request to join", "ขอเข้าร่วม")}
-              </button>
-            </form>
+              <summary>
+                {t("Join as a guest", "เข้าร่วมแบบผู้เยี่ยมชม")}
+              </summary>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const f = new FormData(e.currentTarget);
+                  void run(async () => {
+                    await redeem(route.slice(7), f.get("name"));
+                    history.replaceState(null, "", location.pathname + "#");
+                    setRoute("#");
+                  });
+                }}
+              >
+                <label>
+                  {t("Your name", "ชื่อของคุณ")}
+                  <input name="name" required maxLength={80} />
+                </label>
+                <label>
+                  <input type="checkbox" required />
+                  {t(
+                    "I am using the browser or installed app I will keep using.",
+                    "ฉันกำลังใช้แอปหรือเบราว์เซอร์ที่จะใช้ต่อไป",
+                  )}
+                </label>
+                <button disabled={busy}>
+                  {t("Request to join", "ขอเข้าร่วม")}
+                </button>
+              </form>
             </details>
           </section>
         ) : null}
@@ -243,13 +251,28 @@ export function App() {
             </label>
           </section>
         )}
-        {uid && (
+        {!canCreateTrip(user) && !route.startsWith("#/join/") && (
+          <EmailAccess
+            key={uid ?? "signed-out"}
+            guest={!!user?.is_anonymous}
+            thai={thai.value}
+            onVerified={() => {
+              void db.auth.getSession().then(({ data }) => {
+                setUser(data.session?.user ?? null);
+                setUid(data.session?.user.id);
+              });
+            }}
+          />
+        )}
+        {canCreateTrip(user) && (
           <>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 const f = new FormData(e.currentTarget);
                 void run(async () => {
+                  if (!canCreateTrip(user))
+                    throw new Error("Email verification required");
                   await rpc("create_trip", {
                     p_title: f.get("title"),
                     p_name: f.get("name"),
@@ -287,10 +310,12 @@ export function App() {
               ))}
               <button disabled={busy}>{t("Create trip", "สร้างทริป")}</button>
             </form>
-            <button onClick={() => void qc.invalidateQueries()}>
-              {t("Refresh status", "รีเฟรชสถานะ")}
-            </button>
           </>
+        )}
+        {uid && (
+          <button onClick={() => void qc.invalidateQueries()}>
+            {t("Refresh status", "รีเฟรชสถานะ")}
+          </button>
         )}
         {requests.data
           ?.filter((r) => r.auth_user_id === uid)
@@ -354,117 +379,176 @@ export function App() {
               {org && (
                 <>
                   <details class="trip-settings">
-                  <summary>{t("Trip settings and access", "ตั้งค่าทริปและการเข้าถึง")}</summary>
-                  <button
-                    disabled={busy || trip.status !== "active"}
-                    onClick={() =>
-                      void run(async () => {
-                        const r = await rpc("create_invite", {
-                          p_trip_id: trip.id,
-                        });
-                        setQr(
-                          await QRCode.toDataURL(
-                            location.origin +
-                              location.pathname +
-                              "#/join/" +
-                              r[0].token,
-                          ),
-                        );
-                      })
-                    }
-                  >
-                    {t(
-                      "Create invitation QR (24 hours, 8 uses)",
-                      "สร้าง QR คำเชิญ (24 ชั่วโมง 8 คน)",
-                    )}
-                  </button>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const name = new FormData(e.currentTarget).get("name");
-                      void run(async () => {
-                        await rpc("add_managed_member", {
-                          p_trip_id: trip.id,
-                          p_name: name,
-                        });
-                      });
-                    }}
-                  >
-                    <label>
+                    <summary>
                       {t(
-                        "Traveler without a device",
-                        "ผู้เดินทางที่ไม่มีอุปกรณ์",
+                        "Trip settings and access",
+                        "ตั้งค่าทริปและการเข้าถึง",
                       )}
-                      <input name="name" required maxLength={80} />
-                    </label>
-                    <button disabled={busy}>
-                      {t("Add traveler", "เพิ่มผู้เดินทาง")}
+                    </summary>
+                    <button
+                      disabled={busy || trip.status !== "active"}
+                      onClick={() =>
+                        void run(async () => {
+                          const r = await rpc("create_invite", {
+                            p_trip_id: trip.id,
+                          });
+                          setQr(
+                            await QRCode.toDataURL(
+                              location.origin +
+                                location.pathname +
+                                "#/join/" +
+                                r[0].token,
+                            ),
+                          );
+                        })
+                      }
+                    >
+                      {t(
+                        "Create invitation QR (24 hours, 8 uses)",
+                        "สร้าง QR คำเชิญ (24 ชั่วโมง 8 คน)",
+                      )}
                     </button>
-                  </form>
-                  {requests.data
-                    ?.filter(
-                      (r) => r.trip_id === trip.id && r.status === "pending",
-                    )
-                    .map((r) => (
-                      <div key={r.id}>
-                        <p>{r.requested_display_name}</p>
-                        {[true, false].map((approve) => (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const name = new FormData(e.currentTarget).get("name");
+                        void run(async () => {
+                          await rpc("add_managed_member", {
+                            p_trip_id: trip.id,
+                            p_name: name,
+                          });
+                        });
+                      }}
+                    >
+                      <label>
+                        {t(
+                          "Traveler without a device",
+                          "ผู้เดินทางที่ไม่มีอุปกรณ์",
+                        )}
+                        <input name="name" required maxLength={80} />
+                      </label>
+                      <button disabled={busy}>
+                        {t("Add traveler", "เพิ่มผู้เดินทาง")}
+                      </button>
+                    </form>
+                    {uid && (
+                      <button onClick={() => void qc.invalidateQueries()}>
+                        {t("Refresh status", "รีเฟรชสถานะ")}
+                      </button>
+                    )}
+                    {requests.data
+                      ?.filter(
+                        (r) => r.trip_id === trip.id && r.status === "pending",
+                      )
+                      .map((r) => (
+                        <div key={r.id}>
+                          <p>{r.requested_display_name}</p>
+                          {[true, false].map((approve) => (
+                            <button
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  await rpc("decide_join", {
+                                    p_request_id: r.id,
+                                    p_approve: approve,
+                                  });
+                                })
+                              }
+                            >
+                              {approve
+                                ? t("Approve", "อนุมัติ")
+                                : t("Decline", "ปฏิเสธ")}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    {invites.data
+                      ?.filter((i) => i.trip_id === trip.id)
+                      .map((i) => (
+                        <p key={i.id}>
+                          {i.uses_count}/{i.max_uses} · {i.expires_at}
                           <button
-                            disabled={busy}
+                            disabled={busy || !!i.revoked_at}
                             onClick={() =>
                               void run(async () => {
-                                await rpc("decide_join", {
-                                  p_request_id: r.id,
-                                  p_approve: approve,
+                                await rpc("revoke_invite", {
+                                  p_invite_id: i.id,
                                 });
+                                setQr("");
                               })
                             }
                           >
-                            {approve
-                              ? t("Approve", "อนุมัติ")
-                              : t("Decline", "ปฏิเสธ")}
+                            {t("Revoke", "ยกเลิก")}
                           </button>
-                        ))}
-                      </div>
-                    ))}
-                  {invites.data
-                    ?.filter((i) => i.trip_id === trip.id)
-                    .map((i) => (
-                      <p key={i.id}>
-                        {i.uses_count}/{i.max_uses} · {i.expires_at}
-                        <button
-                          disabled={busy || !!i.revoked_at}
-                          onClick={() =>
-                            void run(async () => {
-                              await rpc("revoke_invite", { p_invite_id: i.id });
-                              setQr("");
-                            })
-                          }
-                        >
-                          {t("Revoke", "ยกเลิก")}
-                        </button>
+                        </p>
+                      ))}
+                    <button
+                      disabled={busy || trip.status === "archived"}
+                      onClick={() =>
+                        void run(async () => {
+                          await rpc("archive_trip", { p_trip_id: trip.id });
+                          setQr("");
+                        })
+                      }
+                    >
+                      {t("Archive trip", "เก็บทริป")}
+                    </button>
+                    {trip.status === "archived" && (
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            await rpc("restore_trip", { p_trip_id: trip.id });
+                          })
+                        }
+                      >
+                        {t("Restore trip", "กู้คืนทริป")}
+                      </button>
+                    )}
+                    <details class="danger-zone">
+                      <summary>
+                        {t("Permanently delete trip…", "ลบทริปถาวร…")}
+                      </summary>
+                      <p>
+                        {t(
+                          "This permanently removes the trip, its itinerary, expenses, members, and stay details. Type the trip title to confirm.",
+                          "การดำเนินการนี้จะลบทริป กำหนดการ ค่าใช้จ่าย สมาชิก และข้อมูลที่พักถาวร กรุณาพิมพ์ชื่อทริปเพื่อยืนยัน",
+                        )}
                       </p>
-                    ))}
-                  <button
-                    disabled={busy || trip.status === "archived"}
-                    onClick={() =>
-                      void run(async () => {
-                        await rpc("archive_trip", { p_trip_id: trip.id });
-                        setQr("");
-                      })
-                    }
-                  >
-                    {t("Archive trip", "เก็บทริป")}
-                  </button>
-                  {trip.status === "archived" && <button disabled={busy} onClick={() => void run(async () => { await rpc("restore_trip", { p_trip_id: trip.id }); })}>{t("Restore trip", "กู้คืนทริป")}</button>}
-                  <details class="danger-zone">
-                    <summary>{t("Permanently delete trip…", "ลบทริปถาวร…")}</summary>
-                    <p>{t("This permanently removes the trip, its itinerary, expenses, members, and stay details. Type the trip title to confirm.", "การดำเนินการนี้จะลบทริป กำหนดการ ค่าใช้จ่าย สมาชิก และข้อมูลที่พักถาวร กรุณาพิมพ์ชื่อทริปเพื่อยืนยัน")}</p>
-                    <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); if (f.get("confirmTitle") !== trip.title) { setError(t("The title does not match.", "ชื่อทริปไม่ตรงกัน")); return; } void run(async () => { await rpc("delete_trip", { p_trip_id: trip.id, p_confirmation_title: f.get("confirmTitle") }); }); }}>
-                      <label>{t("Trip title", "ชื่อทริป")}<input name="confirmTitle" required autoComplete="off" /></label>
-                      <button class="danger-button" disabled={busy}>{t("Delete permanently", "ลบถาวร")}</button>
-                    </form>
-                  </details>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const f = new FormData(e.currentTarget);
+                          if (f.get("confirmTitle") !== trip.title) {
+                            setError(
+                              t(
+                                "The title does not match.",
+                                "ชื่อทริปไม่ตรงกัน",
+                              ),
+                            );
+                            return;
+                          }
+                          void run(async () => {
+                            await rpc("delete_trip", {
+                              p_trip_id: trip.id,
+                              p_confirmation_title: f.get("confirmTitle"),
+                            });
+                          });
+                        }}
+                      >
+                        <label>
+                          {t("Trip title", "ชื่อทริป")}
+                          <input
+                            name="confirmTitle"
+                            required
+                            autoComplete="off"
+                          />
+                        </label>
+                        <button class="danger-button" disabled={busy}>
+                          {t("Delete permanently", "ลบถาวร")}
+                        </button>
+                      </form>
+                    </details>
                   </details>
                 </>
               )}

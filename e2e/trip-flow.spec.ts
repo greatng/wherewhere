@@ -161,6 +161,8 @@ async function installFixture(page: import("@playwright/test").Page) {
           aud: "authenticated",
           role: "authenticated",
           email: "fixture@example.test",
+          email_confirmed_at: "2026-01-01T00:00:00Z",
+          is_anonymous: false,
           app_metadata: { provider: "email", providers: ["email"] },
           user_metadata: {},
           created_at: "2026-01-01T00:00:00Z",

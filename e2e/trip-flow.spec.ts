@@ -40,7 +40,10 @@ type FixtureRpcArgs = {
   p_item_id?: string;
 };
 
-async function installFixture(page: import("@playwright/test").Page) {
+async function installFixture(
+  page: import("@playwright/test").Page,
+  options: { guest?: boolean } = {},
+) {
   const trip = {
     id: tripId,
     title: "Bangkok Weekend",
@@ -84,7 +87,7 @@ async function installFixture(page: import("@playwright/test").Page) {
       id: "stop-1",
       trip_id: tripId,
       title: "Wat Arun",
-      starts_at: "2026-11-01T09:00:00Z",
+      starts_at: "2026-11-02T02:00:00Z",
       address: "Bangkok, Thailand",
       latitude: 13.7437,
       longitude: 100.4889,
@@ -93,7 +96,27 @@ async function installFixture(page: import("@playwright/test").Page) {
       transport_mode: "boat",
       position: 0,
       version: 1,
+      plan_date: "2026-11-02",
+    },
+    {
+      id: "stop-past",
+      trip_id: tripId,
+      title: "Old Town Walk",
+      starts_at: "2026-11-01T04:00:00Z",
+      address: "Bangkok, Thailand",
+      position: 1,
+      version: 1,
       plan_date: "2026-11-01",
+    },
+    {
+      id: "stop-next",
+      trip_id: tripId,
+      title: "Chatuchak Market",
+      starts_at: "2026-11-02T05:00:00Z",
+      address: "Kamphaeng Phet 2 Road",
+      position: 2,
+      version: 1,
+      plan_date: "2026-11-02",
     },
   ];
   let nights: Record<string, unknown>[] = [
@@ -145,11 +168,12 @@ async function installFixture(page: import("@playwright/test").Page) {
   let checkIns: Record<string, unknown>[] = [];
   let savedExpense: FixtureRpcArgs | undefined;
   let savedCheckIn: FixtureRpcArgs | undefined;
+  let failCheckInOnce = false;
   let savedCorrection: FixtureRpcArgs | undefined;
   const rpcCalls: { fn: string; args: FixtureRpcArgs }[] = [];
 
   await page.addInitScript(
-    ({ uid, token }) => {
+    ({ uid, token, guest }) => {
       const session = {
         access_token: token,
         token_type: "bearer",
@@ -160,17 +184,21 @@ async function installFixture(page: import("@playwright/test").Page) {
           id: uid,
           aud: "authenticated",
           role: "authenticated",
-          email: "fixture@example.test",
-          email_confirmed_at: "2026-01-01T00:00:00Z",
-          is_anonymous: false,
-          app_metadata: { provider: "email", providers: ["email"] },
+          email: guest ? undefined : "fixture@example.test",
+          email_confirmed_at: guest
+            ? undefined
+            : "2026-01-01T00:00:00Z",
+          is_anonymous: guest,
+          app_metadata: guest
+            ? { provider: "anonymous", providers: ["anonymous"] }
+            : { provider: "email", providers: ["email"] },
           user_metadata: {},
           created_at: "2026-01-01T00:00:00Z",
         },
       };
       localStorage.setItem("sb-127-auth-token", JSON.stringify(session));
     },
-    { uid, token },
+    { uid, token, guest: !!options.guest },
   );
 
   await page.route("**/rest/v1/**", async (route) => {
@@ -200,10 +228,23 @@ async function installFixture(page: import("@playwright/test").Page) {
     });
   });
 
+  await page.route("**/auth/v1/logout**", async (route) => {
+    await route.fulfill({ status: 204, body: "" });
+  });
+
   await page.route("**/rest/v1/rpc/**", async (route) => {
     const fn = new URL(route.request().url()).pathname.split("/").pop();
     const args = route.request().postDataJSON() as FixtureRpcArgs;
     rpcCalls.push({ fn: fn ?? "", args });
+    if (fn === "check_in" && failCheckInOnce) {
+      failCheckInOnce = false;
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "temporary server error" }),
+      });
+      return;
+    }
     let result: unknown = null;
     if (fn === "upsert_itinerary_item") {
       const item = {
@@ -309,7 +350,7 @@ async function installFixture(page: import("@playwright/test").Page) {
         status: "active",
       };
       trips.push(created);
-      result = created;
+      result = created.id;
     } else if (fn === "check_in") {
       savedCheckIn = args;
       checkIns = [
@@ -335,29 +376,55 @@ async function installFixture(page: import("@playwright/test").Page) {
     getSavedCheckIn: () => savedCheckIn,
     getSavedCorrection: () => savedCorrection,
     getRpcCalls: () => rpcCalls,
+    failNextCheckIn: () => { failCheckInOnce = true; },
+    getCheckInOperationIds: () => rpcCalls
+      .filter((call) => call.fn === "check_in")
+      .map((call) => call.args.p_operation_id),
+    getCheckInCount: () => checkIns.length,
   };
 }
+
+async function openTrip(page: import("@playwright/test").Page) {
+  const dashboard = page.getByRole("region", { name: "Choose a trip" });
+  const tripCard = dashboard.getByRole("button", { name: /Bangkok Weekend/ });
+  await expect(tripCard).toBeVisible();
+  await tripCard.click();
+  await expect(tripCard).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "Bangkok Weekend" })).toBeVisible();
+  return tripCard;
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-11-02T03:00:00.000Z") });
+});
 
 test("mocked enrolled itinerary and expense flow; keyboard and labels; preview capture", async ({
   page,
 }, testInfo) => {
   const fixtureState = await installFixture(page);
   await page.goto("/");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "PaiKan" })).toBeFocused();
+  await openTrip(page);
   await expect(
-    page.getByRole("heading", { name: "Bangkok Weekend" }),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Choose a trip" }).locator('[aria-pressed="true"]'),
+  ).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Wat Arun" })).toBeVisible();
+  const todayCard = page.locator(".next-stop");
+  await expect(todayCard).toContainText("Current stop");
+  await expect(todayCard).toContainText("Wat Arun");
+  await expect(todayCard).toContainText("Next stop");
+  await expect(todayCard).toContainText("Chatuchak Market");
+  await expect(todayCard).not.toContainText("Old Town Walk");
   await expect(
     page.getByText("Niran — Not checked in", { exact: true }),
   ).toBeVisible();
 
   const destination = page.getByLabel("Place or activity");
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "TravelMate" })).toBeFocused();
   await page.locator(".stop-editor summary").click();
   await expect(destination).toBeVisible();
 
-  await destination.fill("Chatuchak Market");
+  await destination.fill("Lunch at Or Tor Kor");
   const stopEditor = page.locator(".stop-editor");
   await stopEditor.getByLabel("Address").fill("Kamphaeng Phet 2 Road");
   await stopEditor.getByLabel("Notes").fill("Arrive before noon");
@@ -376,13 +443,10 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
           .find((call) => call.fn === "upsert_itinerary_item")?.args,
     )
     .toMatchObject({
-      p_title: "Chatuchak Market",
+      p_title: "Lunch at Or Tor Kor",
       p_plan_date: "2026-11-02",
       p_transport_mode: "train",
     });
-  await expect(
-    page.getByText("Chatuchak Market", { exact: true }),
-  ).toBeVisible();
   await page.locator(".activity").screenshot({
     path: `artifacts/${testInfo.project.name}-itinerary-fixture-preview.png`,
   });
@@ -462,9 +526,7 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
 }) => {
   const fixtureState = await installFixture(page);
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Bangkok Weekend" }),
-  ).toBeVisible();
+  await openTrip(page);
   await page
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Plan" })
@@ -590,6 +652,7 @@ test("trip creation carries its date range; archive and restore work; wrong dele
 }) => {
   const fixtureState = await installFixture(page);
   await page.goto("/");
+  await page.locator("details.create-trip > summary").click();
   await page.getByLabel("Trip name").fill("Kyoto Spring");
   await page.getByLabel("Your name").fill("Mali");
   await page.getByLabel("Start date").fill("2027-03-20");
@@ -608,15 +671,14 @@ test("trip creation carries its date range; archive and restore work; wrong dele
       p_currency: "THB",
     });
 
-  const tripCard = page
-    .locator("main > section")
-    .filter({ has: page.getByRole("heading", { name: "Bangkok Weekend" }) });
-  await tripCard
+  await openTrip(page);
+  await page
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Trip" })
     .click();
-  await tripCard.getByText("Trip settings and access", { exact: true }).click();
-  await tripCard.getByRole("button", { name: "Archive trip" }).click();
+  await expect(page.getByText("Trip settings and access", { exact: true })).toBeVisible();
+  await page.getByText("Trip settings and access", { exact: true }).click();
+  await page.getByRole("button", { name: "Archive trip" }).click();
   await expect
     .poll(
       () =>
@@ -624,7 +686,7 @@ test("trip creation carries its date range; archive and restore work; wrong dele
           ?.args,
     )
     .toEqual({ p_trip_id: tripId });
-  await tripCard.getByRole("button", { name: "Restore trip" }).click();
+  await page.getByRole("button", { name: "Restore trip" }).click();
   await expect
     .poll(
       () =>
@@ -633,9 +695,9 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     )
     .toEqual({ p_trip_id: tripId });
 
-  await tripCard.getByText("Permanently delete trip…").click();
-  await tripCard.getByLabel("Trip title").last().fill("Wrong title");
-  await tripCard.getByRole("button", { name: "Delete permanently" }).click();
+  await page.getByText("Delete trip", { exact: true }).click();
+  await page.getByLabel("Trip title").last().fill("Wrong title");
+  await page.getByRole("button", { name: "Delete permanently" }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "The title does not match." }),
   ).toBeVisible();
@@ -643,8 +705,8 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     fixtureState.getRpcCalls().filter((call) => call.fn === "delete_trip"),
   ).toHaveLength(0);
 
-  await tripCard.getByLabel("Trip title").last().fill("Bangkok Weekend");
-  await tripCard.getByRole("button", { name: "Delete permanently" }).click();
+  await page.getByLabel("Trip title").last().fill("Bangkok Weekend");
+  await page.getByRole("button", { name: "Delete permanently" }).click();
   await expect
     .poll(
       () =>
@@ -660,9 +722,7 @@ test("offline check-in stays queued until reconnect, then receives fixture ackno
 }) => {
   const fixtureState = await installFixture(page);
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Bangkok Weekend" }),
-  ).toBeVisible();
+  await openTrip(page);
   await expect(page.getByRole("heading", { name: "Wat Arun" })).toBeVisible();
 
   await context.setOffline(true);
@@ -689,8 +749,83 @@ test("offline check-in stays queued until reconnect, then receives fixture ackno
     .toMatchObject({
       p_trip_id: tripId,
       p_member_id: alice,
-      p_item_id: "stop-1",
+      p_item_id: "stop-next",
     });
+});
+
+test("failed offline action can be inspected and retried with its original ID", async ({ page, context }, testInfo) => {
+  const fixtureState = await installFixture(page);
+  await page.goto("/");
+  await openTrip(page);
+  fixtureState.failNextCheckIn();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "I'm Here" }).click();
+  await context.setOffline(false);
+  const queue = page.locator(".offline-queue");
+  await queue.locator("summary").click();
+  const operation = queue.locator(".offline-operation");
+  await expect(operation).toContainText("Failed");
+  await page.locator(".activity").screenshot({
+    path: `artifacts/${testInfo.project.name}-offline-queue-fixture-preview.png`,
+    style: "header, .activity-tabs { position: static !important; }",
+  });
+  const originalId = fixtureState.getCheckInOperationIds()[0];
+  expect(originalId).toEqual(expect.any(String));
+  await operation.getByRole("button", { name: "Retry" }).click();
+  await expect(operation).toHaveCount(0);
+  expect(fixtureState.getCheckInOperationIds()).toEqual([originalId, originalId]);
+  expect(fixtureState.getCheckInCount()).toBe(1);
+});
+
+test("guest account warns before sign-out and can stay signed in", async ({ page }) => {
+  await installFixture(page, { guest: true });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Guest account" }).click();
+  await page.getByRole("button", { name: "Sign out of this device" }).click();
+  const warning = page.getByRole("alert", { name: "Confirm sign out" });
+  await expect(warning).toContainText("guest account can lose access");
+  await expect(warning).toContainText("supervised recovery");
+  await warning.getByRole("button", { name: "Keep signed in" }).click();
+  await expect(page.getByRole("button", { name: "Guest account" })).toBeVisible();
+});
+
+test("email account confirms sign-out of this device", async ({ page }) => {
+  await installFixture(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "fixture@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out of this device" }).click();
+  const warning = page.getByRole("alert", { name: "Confirm sign out" });
+  await expect(warning).toContainText("sign in again with your email");
+  await warning.getByRole("button", { name: "Confirm sign out" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reconnect to your trip" }),
+  ).toBeVisible();
+});
+
+test("Senior view persists on this device and hides editing tabs", async ({ page }, testInfo) => {
+  await installFixture(page);
+  await page.goto("/");
+  await page.screenshot({
+    path: `artifacts/${testInfo.project.name}-dashboard-fixture-preview.png`,
+    fullPage: true,
+  });
+  await openTrip(page);
+  await page.getByRole("button", { name: "Senior view" }).click();
+  await expect(page.getByRole("button", { name: "Exit senior view" })).toBeVisible();
+  const tabs = page.getByRole("navigation", { name: "Trip sections" });
+  await expect(tabs.getByRole("button", { name: "Plan" })).toHaveCount(0);
+  await expect(tabs.getByRole("button", { name: "Expenses" })).toHaveCount(0);
+  await expect(tabs).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit stop" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Itinerary" })).toHaveCount(0);
+  await expect(page.getByText("Niran — Not checked in", { exact: true })).toHaveCount(0);
+  await page.locator(".activity").screenshot({
+    path: `artifacts/${testInfo.project.name}-senior-fixture-preview.png`,
+    style: "header, .activity-tabs { position: static !important; }",
+  });
+  await page.reload();
+  await openTrip(page);
+  await expect(page.getByRole("button", { name: "Exit senior view" })).toBeVisible();
 });
 
 test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok date", async ({
@@ -699,9 +834,7 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
   await page.clock.install({ time: new Date("2026-11-02T03:00:00.000Z") });
   await installFixture(page);
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Bangkok Weekend" }),
-  ).toBeVisible();
+  await openTrip(page);
   const activity = page.locator(".activity");
   const screenshot = async (tab: string) => {
     await activity.screenshot({
@@ -735,6 +868,7 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Trip", exact: true })
     .click();
+  await page.getByText("Delete trip", { exact: true }).click();
   await expect(page.locator(".help-card > strong")).toContainText(
     "Family contact",
   );

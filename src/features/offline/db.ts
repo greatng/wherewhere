@@ -43,18 +43,33 @@ class TravelMateDB extends Dexie {
 
 export const localDb = new TravelMateDB();
 
+// The app marks sign-out before clearing IndexedDB. Late fetches must not
+// repopulate private data after cleanup or under a replacement identity.
+function mayWriteCache(ownerId: string): boolean {
+  if (typeof localStorage === "undefined") return true;
+  if (localStorage.getItem("paikan-cache-disabled") === "true") return false;
+  const current = localStorage.getItem("travelmate-local-user");
+  return !current || current === ownerId;
+}
+
 export async function cacheTripData(
   ownerId: string,
   tripId: string,
   kind: CachedTripData["kind"],
   payload: unknown,
 ) {
-  await localDb.cached.put({
-    ownerId,
-    tripId,
-    kind,
-    payload,
-    savedAt: Date.now(),
+  if (!mayWriteCache(ownerId)) return;
+  await localDb.transaction("rw", localDb.cached, async () => {
+    if (!mayWriteCache(ownerId)) return;
+    await localDb.cached.put({
+      ownerId,
+      tripId,
+      kind,
+      payload,
+      savedAt: Date.now(),
+    });
+    if (!mayWriteCache(ownerId))
+      await localDb.cached.delete([ownerId, tripId, kind]);
   });
 }
 

@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: "prompt",
       injectRegister: "auto",
       manifest: {
-        name: "TravelMate",
-        short_name: "TravelMate",
-        description: "Small trips, together.",
+        name: "PaiKan",
+        short_name: "PaiKan",
+        description: "Every day, together.",
         start_url: "/",
         scope: "/",
         display: "standalone",

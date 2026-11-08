@@ -1,0 +1,69 @@
+# PaiKan — product improvement stories
+
+Scope: implementation following the product review of commit 9d8eb55. PaiKan (ไปกัน) means “Let's go together.” Keep Thai/English, quiet ivory/moss styling and accessible controls. Preserve existing login storage, IndexedDB and trip history through the rename. No live hosted data is modified as part of development.
+
+## US1 — recognizable identity
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/1
+
+As a traveler, I see PaiKan in the app, browser title, install manifest and icon, so I recognize the same service on return. Existing sessions and local pending operations survive the name change; internal legacy storage keys are retained deliberately.
+
+## US2 — one trip at a time
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/2
+
+As a traveler belonging to several trips, I choose a trip from a compact dashboard and see one workspace. I can switch trips or return to the dashboard. Remember the selected trip per device identity, but clear it if access is lost or the trip is deleted. Dashboard shows active and archived status. Do not expose another user's remembered trip or private data.
+
+## US3 — discoverable trip management
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/3
+
+As an organizer, I find travelers, approvals, invitations, archive/restore and Delete trip in the Trip tab. Ordinary members cannot invoke organizer actions. Deletion clearly explains that it affects everyone and requires the exact trip title. A mismatched title never calls deletion; a successful deletion returns to available trips. No actual live trip is deleted by verification tests.
+
+## US4 — useful Today
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/4
+
+As a traveler, I see current/next destinations belonging to the trip-local day. Completed days never show a past stop as the next destination. Untimed stops remain visible with a clear time-not-set label. If there are no stops or the day/trip is finished, say so. Optional device-local current-stop choice must be explicitly labeled and never implied to be synchronized to the group. Attendance includes last server-acknowledged time and clearly labels cached/offline data.
+
+## US5 — simpler senior view
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/5
+
+As an older traveler, I can persist Senior view on this device and see only destination/directions, check-in, tonight's stay and family contact, with large labels and controls. I can leave Senior view easily. Organizer editors and unnecessary tabs are hidden in this mode. No location permission is assumed.
+
+## US6 — account clarity and safe sign-out
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/6
+
+As a user, I can see whether I am Guest or signed in with email and explicitly sign out. Before signing out as a guest, explain that their anonymous session cannot be recovered by name alone. Warn about pending device operations and require confirmation; clearing local data must not falsely claim they were sent. Sign-out affects this device and clears private in-memory and local caches and remembered trip selections.
+
+## US7 — organizer-assisted recovery
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/7
+
+As an organizer who has verified a traveler's identity in person or through a trusted channel, I can reopen a denied join request or explicitly approve and link a pending recovery request to an existing member. A QR or matching display name never grants identity ownership. Relinking preserves member IDs and expense history, revokes the old device's trip membership, is trip-scoped and records an audit entry. No guest can self-approve, reopen, or relink. Archived trips reject recovery writes. Removed users cannot regain access without this explicit trusted action.
+
+## US8 — actionable offline operations
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/8
+
+As a traveler, I can inspect pending/failed/blocked check-ins and expenses, understand errors, and retry using the same operation ID. Retrying cannot duplicate a server write. A locally saved action is not delivered until acknowledged. Discard requires explicit confirmation and is unavailable while sending; disclose that an uncertain network outcome may already have reached the server and should be checked. Retrying an unrecoverable permission failure must not pretend success. Persist operations across app restart and isolate by identity and trip.
+
+## US9 — understandable errors
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/9
+
+As a user, I receive actionable messages for lost access, missing backend setup, invalid input, conflicts and network failures. Organizers may inspect technical details without exposing secrets. Retain entered input where safe and never substitute cached data for an authorization denial.
+
+## Verification and release boundary
+
+Run lint, TypeScript/build, domain/database/component tests and browser flows for organizer and guest states. Capture desktop/mobile previews using disclosed sample data. Database tests run actual migrations in PGlite; browser fixtures are not proof of hosted Supabase email/Edge behavior. A real organizer-and-guest pilot, installed iOS/Android sessions, production SMTP and proxy/rate-limit checks remain manual release acceptance; do not claim these were completed locally.
+
+## Implementation evidence
+
+Stories US1–US9 are tracked in GitHub issues #1–#9 (linked above). Local changes had already begun when the issue-first workflow was requested; implementation was paused while those issues were opened, then resumed against them. The source changes retain the legacy storage names deliberately, so renaming the app does not replace existing guest sessions or the IndexedDB outbox.
+
+The implementation includes a selected-trip dashboard, management inside the Trip tab, device-scoped account sign-out with pending-action warnings, trip-timezone Today selection and attendance timestamps, persisted reduced Senior view, atomic offline retry/discard/claim controls, actionable errors, and supervised recovery migration 005. Build and lint pass; 42 unit/component/database tests pass, including recovery history preservation, deletion after recovery, same-UUID retry, discard protections, late cache-write rejection after sign-out, and Today boundaries. All 18 desktop/mobile Chromium browser tests pass. Browser coverage and sample-data screenshots are described in [browser-validation.md](browser-validation.md).
+
+Issues remain open for product review and the manual release checks above. New recovery RPCs require applying migration 005 once to an existing hosted database that has migrations 001–004; no hosted migration or real traveler data was changed by this development work.

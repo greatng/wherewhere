@@ -11,10 +11,52 @@ import {
 } from "../src/features/offline/db";
 
 afterEach(async () => {
+  localStorage.removeItem("paikan-cache-disabled");
+  localStorage.removeItem("travelmate-local-user");
   await clearAllLocalData();
 });
 
 describe("offline cache and outbox", () => {
+  it("rejects late cache responses after sign-out and identity replacement", async () => {
+    localStorage.setItem("travelmate-local-user", "user-a");
+    await cacheTripData("user-a", "trip-1", "itinerary", [
+      { title: "Before sign-out" },
+    ]);
+    localStorage.setItem("paikan-cache-disabled", "true");
+    await clearAllLocalData();
+    await cacheTripData("user-a", "trip-1", "itinerary", [
+      { title: "Late old response" },
+    ]);
+    expect(await localDb.cached.count()).toBe(0);
+    localStorage.setItem("travelmate-local-user", "user-b");
+    localStorage.setItem("paikan-cache-disabled", "false");
+    await cacheTripData("user-a", "trip-1", "itinerary", [
+      { title: "Old account" },
+    ]);
+    expect(
+      await readCachedTripData("user-a", "trip-1", "itinerary"),
+    ).toBeUndefined();
+    await cacheTripData("user-b", "trip-1", "itinerary", [
+      { title: "New account" },
+    ]);
+    expect(await readCachedTripData("user-b", "trip-1", "itinerary")).toEqual([
+      { title: "New account" },
+    ]);
+  });
+
+  it("keeps the same user's cache available during an anonymous email upgrade", async () => {
+    localStorage.setItem("travelmate-local-user", "same-user");
+    localStorage.setItem("paikan-cache-disabled", "false");
+    await cacheTripData("same-user", "trip-1", "itinerary", [
+      { title: "Guest trip" },
+    ]);
+    localStorage.setItem("travelmate-local-user", "same-user");
+    await cacheTripData("same-user", "trip-1", "expenses", []);
+    expect(
+      await readCachedTripData("same-user", "trip-1", "itinerary"),
+    ).toEqual([{ title: "Guest trip" }]);
+  });
+
   it("isolates cached trip data by local identity", async () => {
     await cacheTripData("user-a", "trip-1", "itinerary", [
       { title: "Station" },

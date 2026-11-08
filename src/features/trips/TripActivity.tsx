@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import { useQuery } from "@tanstack/preact-query";
 import { supabase } from "../../shared/supabase/client";
 import {
@@ -18,6 +19,13 @@ import {
 import Plan from "../plan/Plan";
 import { tripWallTimeToIso } from "../plan/timezone";
 import { formatDateLabel } from "../plan/dates";
+import {
+  claimOperation,
+  discardOperation,
+  queuedOperationCount,
+  retryOperation,
+} from "../offline/actions";
+import { todayStops } from "./today";
 
 type Member = {
   id: string;
@@ -50,6 +58,7 @@ type Item = {
   transport_mode: string | null;
   position: number;
   version: number;
+  plan_date?: string | null;
 };
 type Expense = {
   id: string;
@@ -187,11 +196,13 @@ export function TripActivity({
   members,
   uid,
   thai,
+  tripSettings,
 }: {
   trip: Trip;
   members: Member[];
   uid: string;
   thai: boolean;
+  tripSettings?: ComponentChildren;
 }) {
   const tr = (en: string, th: string) => (thai ? th : en);
   const approved = members.filter(
@@ -203,10 +214,20 @@ export function TripActivity({
   const [tab, setTab] = useState<"today" | "plan" | "expenses" | "trip">(
     "today",
   );
-  const [senior, setSenior] = useState(false);
+  const seniorKey = `travelmate-senior:${uid}`;
+  const [senior, setSenior] = useState(
+    () => localStorage.getItem(seniorKey) === "true",
+  );
   const [editing, setEditing] = useState<Item | null>(null);
   const [notice, setNotice] = useState("");
   const [offline, setOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    setSenior(localStorage.getItem(seniorKey) === "true");
+  }, [seniorKey]);
+  useEffect(() => {
+    localStorage.setItem(seniorKey, String(senior));
+    if (senior) setTab("today");
+  }, [seniorKey, senior]);
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine);
     window.addEventListener("online", update);
@@ -217,6 +238,9 @@ export function TripActivity({
     };
   }, []);
   const [pending, setPending] = useState(0);
+  const [outbox, setOutbox] = useState<
+    Awaited<ReturnType<typeof pendingOperations>>
+  >([]);
   const [usingCache, setUsingCache] = useState(false);
   const itineraryQuery = useQuery({
     queryKey: ["itinerary", uid, trip.id],
@@ -308,6 +332,7 @@ export function TripActivity({
             id: string;
             trip_member_id: string;
             itinerary_item_id: string;
+            checked_in_at: string;
           }>
         >(uid, trip.id, "checkins");
         if (local) return local;
@@ -473,69 +498,87 @@ export function TripActivity({
     [tripMembers, expenses, settlementsQuery.data, serverBalancesQuery.data],
   );
   const settlements = suggestSettlements(balances);
+  const refreshOutbox = async () => {
+    const rows = await pendingOperations(uid, trip.id);
+    setOutbox(rows);
+    setPending(queuedOperationCount(rows));
+  };
   useEffect(() => {
-    void pendingOperations(uid, trip.id).then((rows) =>
-      setPending(rows.length),
-    );
+    void refreshOutbox();
+    const refresh = () => void refreshOutbox();
+    window.addEventListener("travelmate-outbox-updated", refresh);
+    return () =>
+      window.removeEventListener("travelmate-outbox-updated", refresh);
   }, [uid, trip.id]);
   useEffect(() => {
+    let disposed = false;
+    let syncing = false;
     const sync = async () => {
-      if (!navigator.onLine) return;
-      const ops = await pendingOperations(uid, trip.id);
-      for (const op of ops) {
-        if (op.state === "blocked") continue;
-        try {
-          await localDb.outbox.update(op.id, {
-            state: "sending",
-            error: undefined,
-          });
-          const { kind, payload } = op;
-          const result =
-            kind === "check_in"
-              ? await supabase.rpc("check_in", { ...payload })
-              : await supabase.rpc("create_expense", { ...payload });
-          if (result.error) throw result.error;
-          await localDb.outbox.delete(op.id);
-          setNotice(tr("Sent and confirmed.", "ส่งและยืนยันแล้ว"));
-          window.dispatchEvent(new Event("travelmate-data-updated"));
-        } catch (e) {
-          const code =
-            typeof e === "object" && e !== null && "code" in e
-              ? String((e as { code: unknown }).code)
-              : "";
-          if (code === "42501" || code === "PGRST301") {
+      if (!navigator.onLine || disposed || syncing) return;
+      syncing = true;
+      try {
+        const ops = await pendingOperations(uid, trip.id);
+        for (const op of ops) {
+          if (disposed) break;
+          if (op.state === "blocked") continue;
+          try {
+            if (!(await claimOperation(op.id, uid, trip.id))) continue;
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (disposed || sessionData.session?.user.id !== uid) break;
+            const { kind, payload } = op;
+            const result =
+              kind === "check_in"
+                ? await supabase.rpc("check_in", { ...payload })
+                : await supabase.rpc("create_expense", { ...payload });
+            if (result.error) throw result.error;
+            await localDb.outbox.delete(op.id);
+            if (!disposed)
+              setNotice(tr("Sent and confirmed.", "ส่งและยืนยันแล้ว"));
+            window.dispatchEvent(new Event("travelmate-data-updated"));
+          } catch (e) {
+            const code =
+              typeof e === "object" && e !== null && "code" in e
+                ? String((e as { code: unknown }).code)
+                : "";
+            if (code === "42501" || code === "PGRST301") {
+              await localDb.outbox.update(op.id, {
+                state: "blocked",
+                error: errText(e),
+              });
+              if (!disposed)
+                setNotice(
+                  tr(
+                    "This item needs organizer help and remains saved on this device.",
+                    "รายการนี้ต้องให้ผู้จัดช่วยเหลือ และยังบันทึกอยู่ในอุปกรณ์",
+                  ),
+                );
+              continue;
+            }
             await localDb.outbox.update(op.id, {
-              state: "blocked",
+              state: "failed",
               error: errText(e),
             });
-            setNotice(
-              tr(
-                "This item needs organizer help and remains saved on this device.",
-                "รายการนี้ต้องให้ผู้จัดช่วยเหลือ และยังบันทึกอยู่ในอุปกรณ์",
-              ),
-            );
-            continue;
+            if (!disposed)
+              setNotice(
+                tr(
+                  "Could not send yet. Your item is saved and will retry when connected.",
+                  "ยังส่งไม่ได้ รายการถูกบันทึกและจะลองอีกครั้งเมื่อเชื่อมต่อ",
+                ),
+              );
+            break;
           }
-          await localDb.outbox.update(op.id, {
-            state: "failed",
-            error: errText(e),
-          });
-          setNotice(
-            tr(
-              "Could not send yet. Your item is saved and will retry when connected.",
-              "ยังส่งไม่ได้ รายการถูกบันทึกและจะลองอีกครั้งเมื่อเชื่อมต่อ",
-            ),
-          );
-          break;
         }
+        if (!disposed) await refreshOutbox();
+      } finally {
+        syncing = false;
       }
-      setPending((await pendingOperations(uid, trip.id)).length);
     };
     window.addEventListener("online", sync);
     window.addEventListener("focus", sync);
     window.addEventListener("travelmate-sync", sync);
     void sync();
     return () => {
+      disposed = true;
       window.removeEventListener("online", sync);
       window.removeEventListener("focus", sync);
       window.removeEventListener("travelmate-sync", sync);
@@ -677,7 +720,7 @@ export function TripActivity({
       kind: "check_in",
       payload,
     });
-    setPending((await pendingOperations(uid, trip.id)).length);
+    await refreshOutbox();
     setNotice(
       tr(
         "Saved locally. Waiting for server confirmation.",
@@ -735,7 +778,7 @@ export function TripActivity({
         kind: "expense",
         payload,
       });
-      setPending((await pendingOperations(uid, trip.id)).length);
+      await refreshOutbox();
       setNotice(
         tr(
           "Saved locally. Waiting for server confirmation.",
@@ -802,11 +845,40 @@ export function TripActivity({
       );
     }
   }
-  const now = Date.now();
-  const upcoming =
-    items.find(
-      (item) => item.starts_at && new Date(item.starts_at).getTime() >= now,
-    ) ?? items.at(-1);
+  const now = new Date();
+  const chosenStopKey = `travelmate-current-stop:${uid}:${trip.id}`;
+  const [chosenStopId, setChosenStopId] = useState(
+    () => localStorage.getItem(chosenStopKey) ?? "",
+  );
+  useEffect(
+    () => setChosenStopId(localStorage.getItem(chosenStopKey) ?? ""),
+    [chosenStopKey],
+  );
+  const today = todayStops(
+    items,
+    trip,
+    now,
+    trip.timezone,
+    chosenStopId || undefined,
+  );
+  const todayItems =
+    today.state === "trip-finished" || today.state === "before-trip"
+      ? []
+      : items.filter(
+          (item) =>
+            (item.plan_date ??
+              (item.starts_at
+                ? new Intl.DateTimeFormat("en-CA", {
+                    timeZone: trip.timezone,
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                  }).format(new Date(item.starts_at))
+                : null)) === today.day,
+        );
+  const upcoming = today.next;
+  const current = today.current;
+  const heroStop = chosenStopId ? (current ?? upcoming) : upcoming;
   return (
     <section class={senior ? "activity senior" : "activity"}>
       <div class="activity-heading">
@@ -822,7 +894,7 @@ export function TripActivity({
           onClick={() => setSenior(!senior)}
         >
           {senior
-            ? tr("Standard view", "มุมมองปกติ")
+            ? tr("Exit senior view", "ออกจากมุมมองผู้สูงวัย")
             : tr("Senior view", "มุมมองผู้สูงวัย")}
         </button>
       </div>
@@ -855,59 +927,180 @@ export function TripActivity({
           )}
         </p>
       )}
-      <nav
-        class="activity-tabs"
-        aria-label={tr("Trip sections", "ส่วนของทริป")}
-      >
-        <button
-          type="button"
-          aria-current={tab === "today" ? "page" : undefined}
-          onClick={() => setTab("today")}
+      {outbox.length > 0 && (
+        <details class="offline-queue">
+          <summary>
+            {tr("Saved on this device", "บันทึกไว้ในอุปกรณ์นี้")} (
+            {outbox.length})
+          </summary>
+          {outbox.map((op) => (
+            <article class="offline-operation" key={op.id}>
+              <strong>
+                {op.kind === "check_in"
+                  ? tr("Check-in", "เช็กอิน")
+                  : tr("Expense", "ค่าใช้จ่าย")}
+              </strong>
+              <span>
+                {tr(
+                  op.state === "pending"
+                    ? "Waiting to send"
+                    : op.state === "sending"
+                      ? "Sending"
+                      : op.state === "failed"
+                        ? "Failed"
+                        : "Needs organizer help",
+                  op.state === "pending"
+                    ? "รอส่ง"
+                    : op.state === "sending"
+                      ? "กำลังส่ง"
+                      : op.state === "failed"
+                        ? "ส่งไม่สำเร็จ"
+                        : "ต้องให้ผู้จัดช่วยเหลือ",
+                )}
+              </span>
+              {op.error && <p role="alert">{op.error}</p>}
+              {(op.state === "failed" || op.state === "blocked") && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await retryOperation(op.id, uid, trip.id);
+                    await refreshOutbox();
+                    window.dispatchEvent(new Event("travelmate-sync"));
+                  }}
+                >
+                  {tr("Retry", "ลองอีกครั้ง")}
+                </button>
+              )}
+              {op.state !== "sending" && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await discardOperation(op.id, uid, trip.id, () =>
+                      window.confirm(
+                        tr(
+                          "This item may already have reached the server. Check the trip before discarding. Discard this saved copy?",
+                          "รายการนี้อาจถึงเซิร์ฟเวอร์แล้ว โปรดตรวจสอบทริปก่อนลบ ต้องการลบสำเนาที่บันทึกไว้นี้หรือไม่",
+                        ),
+                      ),
+                    );
+                    await refreshOutbox();
+                  }}
+                >
+                  {tr("Discard", "ลบรายการ")}
+                </button>
+              )}
+            </article>
+          ))}
+        </details>
+      )}
+      {!senior && (
+        <nav
+          class="activity-tabs"
+          aria-label={tr("Trip sections", "ส่วนของทริป")}
         >
-          {tr("Today", "วันนี้")}
-        </button>
-        <button
-          type="button"
-          aria-current={tab === "plan" ? "page" : undefined}
-          onClick={() => setTab("plan")}
-        >
-          {tr("Plan", "แผนการเดินทาง")}
-        </button>
-        <button
-          type="button"
-          aria-current={tab === "expenses" ? "page" : undefined}
-          onClick={() => setTab("expenses")}
-        >
-          {tr("Expenses", "ค่าใช้จ่าย")}
-        </button>
-        <button
-          type="button"
-          aria-current={tab === "trip" ? "page" : undefined}
-          onClick={() => setTab("trip")}
-        >
-          {tr("Trip", "ทริป")}
-        </button>
-      </nav>
+          {!senior && (
+            <button
+              type="button"
+              aria-current={tab === "today" ? "page" : undefined}
+              onClick={() => setTab("today")}
+            >
+              {tr("Today", "วันนี้")}
+            </button>
+          )}
+          {!senior && (
+            <button
+              type="button"
+              aria-current={tab === "plan" ? "page" : undefined}
+              onClick={() => setTab("plan")}
+            >
+              {tr("Plan", "แผนการเดินทาง")}
+            </button>
+          )}
+          <button
+            type="button"
+            aria-current={tab === "expenses" ? "page" : undefined}
+            onClick={() => setTab("expenses")}
+          >
+            {tr("Expenses", "ค่าใช้จ่าย")}
+          </button>
+          <button
+            type="button"
+            aria-current={tab === "trip" ? "page" : undefined}
+            onClick={() => setTab("trip")}
+          >
+            {tr("Trip", "ทริป")}
+          </button>
+        </nav>
+      )}
       {(tab === "today" || tab === "trip") && (
         <EmergencyCard
           tripId={trip.id}
-          organizer={organizer}
+          organizer={organizer && !senior}
           thai={thai}
           ownerId={uid}
         />
       )}
+      {tab === "trip" && !senior && tripSettings}
       {tab === "plan" ? (
         <Plan trip={trip} uid={uid} thai={thai} organizer={organizer} />
       ) : tab === "today" ? (
         <>
           <div class="next-stop">
-            <strong>{tr("Next destination", "จุดหมายถัดไป")}</strong>
-            {upcoming ? (
+            {today.state === "trip-finished" ? (
+              <strong>{tr("Trip finished", "จบทริปแล้ว")}</strong>
+            ) : today.state === "before-trip" ? (
               <>
-                <h3>{upcoming.title}</h3>
+                <strong>{tr("Trip starts", "ทริปเริ่ม")}</strong>
+                <p>{formatDateLabel(trip.start_date, thai ? "th-TH" : "en")}</p>
+              </>
+            ) : today.state === "day-finished" ? (
+              <strong>{tr("Today is finished", "วันนี้จบแล้ว")}</strong>
+            ) : null}
+            {current && !chosenStopId && !senior && (
+              <>
+                <strong>{tr("Current stop", "จุดหมายปัจจุบัน")}</strong>
+                <h3>{current.title}</h3>
+              </>
+            )}
+            {organizer && !senior && todayItems.length > 0 && (
+              <label>
+                {tr(
+                  "Current stop on this device",
+                  "จุดหมายปัจจุบันในอุปกรณ์นี้",
+                )}
+                <select
+                  value={chosenStopId}
+                  onChange={(e) => {
+                    const chosen = (e.currentTarget as HTMLSelectElement).value;
+                    setChosenStopId(chosen);
+                    if (chosen) localStorage.setItem(chosenStopKey, chosen);
+                    else localStorage.removeItem(chosenStopKey);
+                  }}
+                >
+                  <option value="">{tr("Automatic", "อัตโนมัติ")}</option>
+                  {todayItems.map((item) => (
+                    <option value={item.id}>{item.title}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {upcoming && !(chosenStopId && current) && (
+              <strong>{tr("Next stop", "จุดหมายถัดไป")}</strong>
+            )}
+            {heroStop ? (
+              <>
+                {chosenStopId && current && (
+                  <strong>
+                    {tr(
+                      "Current stop on this device",
+                      "จุดหมายปัจจุบันในอุปกรณ์นี้",
+                    )}
+                  </strong>
+                )}
+                <h3>{heroStop.title}</h3>
                 <p>
-                  {upcoming.starts_at
-                    ? new Date(upcoming.starts_at).toLocaleString(
+                  {heroStop.starts_at
+                    ? new Date(heroStop.starts_at).toLocaleString(
                         thai ? "th-TH" : "en",
                         {
                           dateStyle: "medium",
@@ -917,14 +1110,14 @@ export function TripActivity({
                       )
                     : tr("Time to be confirmed", "รอยืนยันเวลา")}
                 </p>
-                {upcoming.address && <p>{upcoming.address}</p>}
-                {upcoming.meeting_info && <p>{upcoming.meeting_info}</p>}
+                {heroStop.address && <p>{heroStop.address}</p>}
+                {heroStop.meeting_info && <p>{heroStop.meeting_info}</p>}
                 <a
                   class="map-link"
                   href={
-                    upcoming.latitude != null && upcoming.longitude != null
-                      ? `https://www.google.com/maps/dir/?api=1&destination=${upcoming.latitude},${upcoming.longitude}`
-                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(upcoming.address || upcoming.title)}`
+                    heroStop.latitude != null && heroStop.longitude != null
+                      ? `https://www.google.com/maps/dir/?api=1&destination=${heroStop.latitude},${heroStop.longitude}`
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(heroStop.address || heroStop.title)}`
                   }
                   target="_blank"
                   rel="noreferrer"
@@ -935,15 +1128,15 @@ export function TripActivity({
                   <button
                     class="checkin"
                     type="button"
-                    onClick={() => void checkIn(upcoming)}
+                    onClick={() => void checkIn(heroStop)}
                   >
                     {tr("I'm Here", "ฉันมาถึงแล้ว")}
                   </button>
                 )}
               </>
-            ) : (
+            ) : today.state === "active" ? (
               <p>{tr("No stops added yet.", "ยังไม่มีจุดหมาย")}</p>
-            )}
+            ) : null}
           </div>
           <section
             class="tonight-card"
@@ -979,214 +1172,248 @@ export function TripActivity({
               <p>{tr("Accommodation not set yet", "ยังไม่ได้กำหนดที่พัก")}</p>
             )}
           </section>
-          <h3>{tr("Itinerary", "กำหนดการเดินทาง")}</h3>
-          {itineraryQuery.isError && (
-            <p role="alert">
-              {tr(
-                "Could not load itinerary. Try again when connected.",
-                "โหลดกำหนดการไม่ได้ กรุณาลองใหม่เมื่อเชื่อมต่ออินเทอร์เน็ต",
-              )}
-            </p>
-          )}
-          {items.map((item, index) => (
-            <article class="stop" key={item.id}>
-              <div>
-                <span class="stop-number">{index + 1}</span>
-                <strong>{item.title}</strong>
-              </div>
-              {item.starts_at && (
-                <p>
-                  {new Date(item.starts_at).toLocaleString(
-                    thai ? "th-TH" : "en",
-                    {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                      timeZone: trip.timezone,
-                    },
+          {!senior && (
+            <>
+              <h3>{tr("Itinerary", "กำหนดการเดินทาง")}</h3>
+              {itineraryQuery.isError && (
+                <p role="alert">
+                  {tr(
+                    "Could not load itinerary. Try again when connected.",
+                    "โหลดกำหนดการไม่ได้ กรุณาลองใหม่เมื่อเชื่อมต่ออินเทอร์เน็ต",
                   )}
                 </p>
               )}
-              {item.address && <p>{item.address}</p>}
-              {item.notes && <p>{item.notes}</p>}
-              {!organizer && me && (
-                <button type="button" onClick={() => void checkIn(item)}>
-                  {tr("I'm Here", "ฉันมาถึงแล้ว")}
-                </button>
+              {todayItems.map((item, index) => (
+                <article class="stop" key={item.id}>
+                  <div>
+                    <span class="stop-number">{index + 1}</span>
+                    <strong>{item.title}</strong>
+                  </div>
+                  {item.starts_at && (
+                    <p>
+                      {new Date(item.starts_at).toLocaleString(
+                        thai ? "th-TH" : "en",
+                        {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                          timeZone: trip.timezone,
+                        },
+                      )}
+                    </p>
+                  )}
+                  {item.address && <p>{item.address}</p>}
+                  {item.notes && <p>{item.notes}</p>}
+                  {!organizer && me && (
+                    <button type="button" onClick={() => void checkIn(item)}>
+                      {tr("I'm Here", "ฉันมาถึงแล้ว")}
+                    </button>
+                  )}
+                  {organizer && !senior && (
+                    <>
+                      <button type="button" onClick={() => setEditing(item)}>
+                        {tr("Edit stop", "แก้ไขจุดหมาย")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteItem(item)}
+                      >
+                        {tr("Delete stop", "ลบจุดหมาย")}
+                      </button>
+                    </>
+                  )}
+                </article>
+              ))}
+              {organizer && !senior && (
+                <details class="stop-editor" open={!!editing}>
+                  <summary>
+                    {editing
+                      ? tr("Edit stop", "แก้ไขจุดหมาย")
+                      : tr("Add a stop", "เพิ่มจุดหมาย")}
+                  </summary>
+                  <form key={editing?.id ?? "new-stop"} onSubmit={saveItem}>
+                    <h3>
+                      {editing
+                        ? tr("Edit stop", "แก้ไขจุดหมาย")
+                        : tr("Add a stop", "เพิ่มจุดหมาย")}
+                    </h3>
+                    <label>
+                      {tr("Place or activity", "สถานที่หรือกิจกรรม")}
+                      <input
+                        required
+                        name="title"
+                        maxLength={160}
+                        defaultValue={editing?.title}
+                      />
+                    </label>
+                    <label>
+                      {tr("Day", "วันที่")}
+                      <input
+                        name="date"
+                        type="date"
+                        min={trip.start_date}
+                        max={trip.end_date}
+                        defaultValue={
+                          editing?.starts_at
+                            ? toTripLocal(
+                                editing.starts_at,
+                                trip.timezone,
+                              ).slice(0, 10)
+                            : trip.start_date
+                        }
+                      />
+                    </label>
+                    <label>
+                      {tr(
+                        "Time in trip timezone (optional)",
+                        "เวลาในเขตเวลาของทริป (ไม่บังคับ)",
+                      )}
+                      <input
+                        name="time"
+                        type="time"
+                        defaultValue={
+                          editing?.starts_at
+                            ? toTripLocal(
+                                editing.starts_at,
+                                trip.timezone,
+                              ).slice(11)
+                            : ""
+                        }
+                      />
+                    </label>
+                    <p>{trip.timezone}</p>
+                    <label>
+                      {tr("Address", "ที่อยู่")}
+                      <input
+                        name="address"
+                        maxLength={500}
+                        defaultValue={editing?.address ?? ""}
+                      />
+                    </label>
+                    <label>
+                      {tr("Meeting point", "จุดนัดพบ")}
+                      <input
+                        name="meeting"
+                        maxLength={300}
+                        defaultValue={editing?.meeting_info ?? ""}
+                      />
+                    </label>
+                    <label>
+                      {tr("Notes", "หมายเหตุ")}
+                      <textarea
+                        name="notes"
+                        maxLength={1000}
+                        defaultValue={editing?.notes ?? ""}
+                      />
+                    </label>
+                    <label>
+                      {tr("Transport", "การเดินทาง")}
+                      <select
+                        name="transport"
+                        defaultValue={editing?.transport_mode ?? ""}
+                      >
+                        <option value="">
+                          {tr("Choose (optional)", "เลือก (ไม่บังคับ)")}
+                        </option>
+                        {[
+                          "walk",
+                          "car",
+                          "taxi",
+                          "bus",
+                          "train",
+                          "boat",
+                          "other",
+                        ].map((x) => (
+                          <option value={x}>
+                            {tr(
+                              x,
+                              (
+                                {
+                                  walk: "เดิน",
+                                  car: "รถยนต์",
+                                  taxi: "แท็กซี่",
+                                  bus: "รถบัส",
+                                  train: "รถไฟ",
+                                  boat: "เรือ",
+                                  other: "อื่น ๆ",
+                                } as Record<string, string>
+                              )[x],
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button>{tr("Save stop", "บันทึกจุดหมาย")}</button>
+                    {editing && (
+                      <button type="button" onClick={() => setEditing(null)}>
+                        {tr("Cancel", "ยกเลิก")}
+                      </button>
+                    )}
+                  </form>
+                </details>
               )}
-              {organizer && (
+              <h3>{tr("Who's checked in", "ใครเช็กอินแล้ว")}</h3>
+              {checkInsQuery.isError ? (
+                <p role="status">
+                  {tr(
+                    "Attendance unavailable offline. Reconnect to refresh.",
+                    "ข้อมูลเช็กอินยังดูไม่ได้ขณะออฟไลน์ กรุณาเชื่อมต่อเพื่อโหลดใหม่",
+                  )}
+                </p>
+              ) : (
                 <>
-                  <button type="button" onClick={() => setEditing(item)}>
-                    {tr("Edit stop", "แก้ไขจุดหมาย")}
-                  </button>
-                  <button type="button" onClick={() => void deleteItem(item)}>
-                    {tr("Delete stop", "ลบจุดหมาย")}
-                  </button>
+                  {(offline || usingCache) && (
+                    <p role="status" class="pending">
+                      {tr(
+                        "Attendance is saved on this device and may be out of date.",
+                        "ข้อมูลการเช็กอินบันทึกไว้ในอุปกรณ์นี้และอาจไม่ใช่ข้อมูลล่าสุด",
+                      )}
+                    </p>
+                  )}
+                  <p>
+                    {heroStop
+                      ? approved.filter((m) =>
+                          checkInsQuery.data?.some(
+                            (c) =>
+                              c.trip_member_id === m.id &&
+                              c.itinerary_item_id === heroStop.id,
+                          ),
+                        ).length
+                      : 0}{" "}
+                    / {approved.length}{" "}
+                    {tr("checked in for this stop", "เช็กอินสำหรับจุดหมายนี้")}
+                  </p>
+                  {approved.map((m) => (
+                    <p class="attendance" key={m.id}>
+                      {m.display_name} —{" "}
+                      {(() => {
+                        const acknowledgement = checkInsQuery.data?.find(
+                          (c) =>
+                            c.trip_member_id === m.id &&
+                            c.itinerary_item_id === heroStop?.id,
+                        );
+                        return acknowledgement ? (
+                          <>
+                            {tr("Checked in", "เช็กอินแล้ว")}{" "}
+                            {acknowledgement.checked_in_at && (
+                              <time dateTime={acknowledgement.checked_in_at}>
+                                {new Date(
+                                  acknowledgement.checked_in_at,
+                                ).toLocaleString(thai ? "th-TH" : "en", {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                  timeZone: trip.timezone,
+                                })}
+                              </time>
+                            )}
+                          </>
+                        ) : (
+                          tr("Not checked in", "ยังไม่เช็กอิน")
+                        );
+                      })()}
+                    </p>
+                  ))}
                 </>
               )}
-            </article>
-          ))}
-          {organizer && (
-            <details class="stop-editor" open={!!editing}>
-              <summary>
-                {editing
-                  ? tr("Edit stop", "แก้ไขจุดหมาย")
-                  : tr("Add a stop", "เพิ่มจุดหมาย")}
-              </summary>
-              <form key={editing?.id ?? "new-stop"} onSubmit={saveItem}>
-                <h3>
-                  {editing
-                    ? tr("Edit stop", "แก้ไขจุดหมาย")
-                    : tr("Add a stop", "เพิ่มจุดหมาย")}
-                </h3>
-                <label>
-                  {tr("Place or activity", "สถานที่หรือกิจกรรม")}
-                  <input
-                    required
-                    name="title"
-                    maxLength={160}
-                    defaultValue={editing?.title}
-                  />
-                </label>
-                <label>
-                  {tr("Day", "วันที่")}
-                  <input
-                    name="date"
-                    type="date"
-                    min={trip.start_date}
-                    max={trip.end_date}
-                    defaultValue={
-                      editing?.starts_at
-                        ? toTripLocal(editing.starts_at, trip.timezone).slice(
-                            0,
-                            10,
-                          )
-                        : trip.start_date
-                    }
-                  />
-                </label>
-                <label>
-                  {tr(
-                    "Time in trip timezone (optional)",
-                    "เวลาในเขตเวลาของทริป (ไม่บังคับ)",
-                  )}
-                  <input
-                    name="time"
-                    type="time"
-                    defaultValue={
-                      editing?.starts_at
-                        ? toTripLocal(editing.starts_at, trip.timezone).slice(
-                            11,
-                          )
-                        : ""
-                    }
-                  />
-                </label>
-                <p>{trip.timezone}</p>
-                <label>
-                  {tr("Address", "ที่อยู่")}
-                  <input
-                    name="address"
-                    maxLength={500}
-                    defaultValue={editing?.address ?? ""}
-                  />
-                </label>
-                <label>
-                  {tr("Meeting point", "จุดนัดพบ")}
-                  <input
-                    name="meeting"
-                    maxLength={300}
-                    defaultValue={editing?.meeting_info ?? ""}
-                  />
-                </label>
-                <label>
-                  {tr("Notes", "หมายเหตุ")}
-                  <textarea
-                    name="notes"
-                    maxLength={1000}
-                    defaultValue={editing?.notes ?? ""}
-                  />
-                </label>
-                <label>
-                  {tr("Transport", "การเดินทาง")}
-                  <select
-                    name="transport"
-                    defaultValue={editing?.transport_mode ?? ""}
-                  >
-                    <option value="">
-                      {tr("Choose (optional)", "เลือก (ไม่บังคับ)")}
-                    </option>
-                    {[
-                      "walk",
-                      "car",
-                      "taxi",
-                      "bus",
-                      "train",
-                      "boat",
-                      "other",
-                    ].map((x) => (
-                      <option value={x}>
-                        {tr(
-                          x,
-                          (
-                            {
-                              walk: "เดิน",
-                              car: "รถยนต์",
-                              taxi: "แท็กซี่",
-                              bus: "รถบัส",
-                              train: "รถไฟ",
-                              boat: "เรือ",
-                              other: "อื่น ๆ",
-                            } as Record<string, string>
-                          )[x],
-                        )}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button>{tr("Save stop", "บันทึกจุดหมาย")}</button>
-                {editing && (
-                  <button type="button" onClick={() => setEditing(null)}>
-                    {tr("Cancel", "ยกเลิก")}
-                  </button>
-                )}
-              </form>
-            </details>
-          )}
-          <h3>{tr("Who's checked in", "ใครเช็กอินแล้ว")}</h3>
-          {checkInsQuery.isError ? (
-            <p role="status">
-              {tr(
-                "Attendance unavailable offline. Reconnect to refresh.",
-                "ข้อมูลเช็กอินยังดูไม่ได้ขณะออฟไลน์ กรุณาเชื่อมต่อเพื่อโหลดใหม่",
-              )}
-            </p>
-          ) : (
-            <>
-              <p>
-                {upcoming
-                  ? approved.filter((m) =>
-                      checkInsQuery.data?.some(
-                        (c) =>
-                          c.trip_member_id === m.id &&
-                          c.itinerary_item_id === upcoming.id,
-                      ),
-                    ).length
-                  : 0}{" "}
-                / {approved.length}{" "}
-                {tr("checked in for next stop", "เช็กอินสำหรับจุดหมายถัดไป")}
-              </p>
-              {approved.map((m) => (
-                <p class="attendance" key={m.id}>
-                  {m.display_name} —{" "}
-                  {checkInsQuery.data?.some(
-                    (c) =>
-                      c.trip_member_id === m.id &&
-                      c.itinerary_item_id === upcoming?.id,
-                  )
-                    ? tr("Checked in", "เช็กอินแล้ว")
-                    : tr("Not checked in", "ยังไม่เช็กอิน")}
-                </p>
-              ))}
             </>
           )}
         </>
@@ -1459,7 +1686,7 @@ export function TripActivity({
                       })}
                   </details>
                 ) : null}
-                {organizer && (
+                {organizer && !senior && (
                   <details>
                     <summary>
                       {tr("Correct expense", "แก้ไขค่าใช้จ่าย")}

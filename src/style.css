@@ -620,3 +620,67 @@ details > summary {
     overflow-wrap: anywhere;
   }
 }
+
+/* Plan presentation overrides: keep itinerary rows flat and editors distinct. */
+.plan {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.plan > .plan-nights,
+.plan > .plan-stays,
+.plan > .plan-activity-editor {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.plan-night,
+.plan-stay,
+.plan-activity {
+  width: 100%;
+  padding: 0.75rem 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.plan-night {
+  border-top: 1px solid var(--line);
+}
+.plan-stay {
+  border-bottom: 1px solid var(--line);
+}
+.plan-activity {
+  border-left: 3px solid #d9b19e;
+  padding-left: 0.65rem;
+}
+.plan-form {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 1rem;
+  margin: 0.65rem 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f8f5ed;
+}
+@media (max-width: 560px) {
+  .plan-night,
+  .plan-stay,
+  .plan-activity {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+  }
+  .plan-activity {
+    padding-left: 0.55rem;
+  }
+  .plan-form {
+    padding: 0.65rem;
+  }
+}

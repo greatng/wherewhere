@@ -94,3 +94,10 @@ As a traveler on a phone, I see more useful information with less nested padding
 
 
 Validation for US10–US12: 47 unit/component/database tests pass, including existing-time local-day grouping, accommodation updates, draft preservation, and migration 006 permissions/version guards. Email auth tests confirm the existing code-entry flow; production email delivery and dashboard settings are not verified locally.
+
+
+## US13 — a flat daily Plan
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/13
+
+As a traveler, I scan dates, cities and activities as one daily list, without boxes inside boxes. Days use dividers; activities are simple rows. Accommodation remains a separate list and forms retain a clear editing surface. Preserve readable text, touch targets, editor navigation and mobile width.

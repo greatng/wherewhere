@@ -60,6 +60,8 @@ These screenshots are fixture-backed previews. They show the UI at desktop and m
 
 The Plan regressions check that add and edit forms scroll into view, that selecting another night while editing keeps the form usable, and that editing a closed accommodation form saves the same stay ID with its next version. The mobile editor preview shows the saved fields and both actions within the compact layout. The [compact mobile Plan preview](../artifacts/mobile-chromium-plan-fixture-preview.png) shows the tab layout.
 
+The refreshed Plan previews show destination nights, activities, and stays as flat rows instead of stacked cards. Activity rows keep a narrow accent line so they remain easy to distinguish within each day.
+
 Local-time regressions run with an America/Los_Angeles browser and an Asia/Bangkok trip. They cover a legacy Nov 2 UTC timestamp displayed as Nov 1 at 18:00 locally, an unchanged save preserving its original instant, and a newly added local activity edited in Today and Plan. The preview test also checks that Today, Plan, Expenses, and Trip have no horizontal overflow at both viewport sizes.
 
 The complete browser suite passed with 22 desktop and mobile Chromium runs: `npx playwright test e2e/trip-flow.spec.ts`.

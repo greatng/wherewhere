@@ -757,6 +757,12 @@ test.describe("Plan editor regressions", () => {
     await expect(editStayForm.getByLabel("Phone")).toHaveValue(
       "+66 2 123 4567",
     );
+    const currentViewport = page.viewportSize();
+    if (currentViewport && currentViewport.width > 600)
+      await page.setViewportSize({
+        width: currentViewport.width,
+        height: Math.max(currentViewport.height, 1100),
+      });
     await editStayForm.screenshot({
       path: `artifacts/${testInfo.project.name}-accommodation-editor-fixture-preview.png`,
     });

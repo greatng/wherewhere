@@ -1,3 +1,4 @@
+import { revealEditor } from "../../shared/editor-navigation";
 import { GuestRecovery } from "./GuestRecovery";
 import { actionError } from "./errors";
 import type { User } from "@supabase/supabase-js";
@@ -320,11 +321,19 @@ export function App() {
                 "ติดตั้งแอปก่อน แล้วเปิดคำเชิญในแอปที่ติดตั้ง บัญชีในเบราว์เซอร์อาจต่างจากแอป",
               )}
             </p>
-            <details class="create-trip">
+            <details
+              class="create-trip"
+              onToggle={(event) => {
+                if (event.currentTarget.open)
+                  revealEditor(event.currentTarget.querySelector("form"));
+              }}
+            >
               <summary>
                 {t("Join as a guest", "เข้าร่วมแบบผู้เยี่ยมชม")}
               </summary>
               <form
+                class="editor-panel"
+                tabIndex={-1}
                 onSubmit={(e) => {
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);
@@ -398,9 +407,17 @@ export function App() {
             />
           )}
         {!selectedId && canCreateTrip(user) && (
-          <details class="create-trip">
+          <details
+            class="create-trip"
+            onToggle={(event) => {
+              if (event.currentTarget.open)
+                revealEditor(event.currentTarget.querySelector("form"));
+            }}
+          >
             <summary>{t("Create a trip", "สร้างทริป")}</summary>
             <form
+              class="editor-panel"
+              tabIndex={-1}
               onSubmit={(e) => {
                 e.preventDefault();
                 const f = new FormData(e.currentTarget);

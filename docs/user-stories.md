@@ -67,3 +67,30 @@ Stories US1–US9 are tracked in GitHub issues #1–#9 (linked above). Local cha
 The implementation includes a selected-trip dashboard, management inside the Trip tab, device-scoped account sign-out with pending-action warnings, trip-timezone Today selection and attendance timestamps, persisted reduced Senior view, atomic offline retry/discard/claim controls, actionable errors, and supervised recovery migration 005. Build and lint pass; 42 unit/component/database tests pass, including recovery history preservation, deletion after recovery, same-UUID retry, discard protections, late cache-write rejection after sign-out, and Today boundaries. All 18 desktop/mobile Chromium browser tests pass. Browser coverage and sample-data screenshots are described in [browser-validation.md](browser-validation.md).
 
 Issues remain open for product review and the manual release checks above. New recovery RPCs require applying migration 005 once to an existing hosted database that has migrations 001–004; no hosted migration or real traveler data was changed by this development work.
+
+
+## US10 — local activity times and reachable editors
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/10
+
+As an organizer, Add/Edit takes me to the correct populated form, including when I select the same item again. Accommodation editing opens from the closed state and saves the existing stay with its version check. Focus moves to the form without opening a mobile keyboard; scrolling respects reduced-motion preferences and sticky navigation.
+
+As a traveler, I enter an activity date and local time without a timezone selector. Everyone on the trip is expected to use the same local device timezone. The app converts that local value to a timestamp for storage, then displays and edits it locally; Today and Tonight use the local calendar day. Existing timestamps are retained. Migration 006 makes an explicitly supplied planned date authoritative while retaining organizer access, version and trip-date checks. Older clients that omit the date retain the legacy trip-timezone fallback.
+
+Issue #10 was opened before implementation and updated when the product owner clarified local-time behavior. No hosted database was modified.
+
+
+## US11 — email codes that keep travelers in PaiKan
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/11
+
+As a traveler, I receive a six-digit email code and enter it in PaiKan without following a development-domain link. Supabase email templates must display the token and its Site URL must point to the deployed app. Preserve guest identity during email enrollment. See [email setup](email-setup.md); hosted configuration remains an operator step.
+
+## US12 — compact mobile workspace
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/12
+
+As a traveler on a phone, I see more useful information with less nested padding and excess whitespace, while keeping readable text, touch-sized buttons, and the larger Senior view. Verify editor scrolling and horizontal overflow on mobile and capture fixture previews.
+
+
+Validation for US10–US12: 47 unit/component/database tests pass, including existing-time local-day grouping, accommodation updates, draft preservation, and migration 006 permissions/version guards. Email auth tests confirm the existing code-entry flow; production email delivery and dashboard settings are not verified locally.

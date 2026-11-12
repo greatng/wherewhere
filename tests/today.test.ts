@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { todayStops } from "../src/features/trips/today";
+import { todayStops, stopsForTripDay } from "../src/features/trips/today";
 
 const trip = { start_date: "2026-11-02", end_date: "2026-11-04" };
 const stops = [
@@ -80,4 +80,17 @@ describe("Today stop selection", () => {
       next: undefined,
     });
   });
+});
+
+it("groups existing timed stops by their local date, preserving explicit days for untimed stops", () => {
+  expect(
+    stopsForTripDay(stops, "2026-11-01", "America/Los_Angeles").map(
+      (item) => item.id,
+    ),
+  ).toEqual(["yesterday", "early", "late"]);
+  expect(
+    stopsForTripDay(stops, "2026-11-02", "America/Los_Angeles").map(
+      (item) => item.id,
+    ),
+  ).toEqual(["untimed"]);
 });

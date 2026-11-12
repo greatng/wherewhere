@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import { useQuery } from "@tanstack/preact-query";
 import { supabase } from "../../shared/supabase/client";
@@ -25,7 +25,13 @@ import {
   queuedOperationCount,
   retryOperation,
 } from "../offline/actions";
-import { todayStops } from "./today";
+import { todayStops, stopsForTripDay } from "./today";
+import { revealEditor } from "../../shared/editor-navigation";
+
+function revealOpenEditor(event: Event) {
+  const details = event.currentTarget as HTMLDetailsElement;
+  if (details.open) revealEditor(details.querySelector("form"));
+}
 
 type Member = {
   id: string;
@@ -205,6 +211,7 @@ export function TripActivity({
   tripSettings?: ComponentChildren;
 }) {
   const tr = (en: string, th: string) => (thai ? th : en);
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const approved = members.filter(
     (m) => m.trip_id === trip.id && m.status === "approved",
   );
@@ -219,6 +226,8 @@ export function TripActivity({
     () => localStorage.getItem(seniorKey) === "true",
   );
   const [editing, setEditing] = useState<Item | null>(null);
+  const stopEditor = useRef<HTMLDetailsElement>(null);
+  const [stopEditorOpen, setStopEditorOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [offline, setOffline] = useState(!navigator.onLine);
   useEffect(() => {
@@ -345,7 +354,7 @@ export function TripActivity({
   });
   const tonightDate = (() => {
     const date = new Intl.DateTimeFormat("en-CA", {
-      timeZone: trip.timezone,
+      timeZone: localTimezone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -357,7 +366,7 @@ export function TripActivity({
         : date;
   })();
   const tripToday = new Intl.DateTimeFormat("en-CA", {
-    timeZone: trip.timezone,
+    timeZone: localTimezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -608,8 +617,27 @@ export function TripActivity({
     const f = new FormData(e.currentTarget as HTMLFormElement);
     const date = String(f.get("date") || "");
     const time = String(f.get("time") || "");
-    const starts =
-      date && time ? tripWallTimeToIso(`${date}T${time}`, trip.timezone) : null;
+    let starts: string | null = null;
+    try {
+      if (time && !date)
+        throw new RangeError(
+          tr("Choose a day for this time.", "กรุณาเลือกวันที่สำหรับเวลานี้"),
+        );
+      starts =
+        date && time
+          ? tripWallTimeToIso(`${date}T${time}`, localTimezone)
+          : null;
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : tr(
+              "Check the activity date and time.",
+              "กรุณาตรวจสอบวันที่และเวลากิจกรรม",
+            ),
+      );
+      return;
+    }
     const { error } = await supabase.rpc("upsert_itinerary_item", {
       p_trip_id: trip.id,
       p_title: f.get("title"),
@@ -638,6 +666,7 @@ export function TripActivity({
       return;
     }
     setEditing(null);
+    setStopEditorOpen(false);
     setNotice(tr("Stop saved.", "บันทึกจุดหมายแล้ว"));
     await itineraryQuery.refetch();
   }
@@ -858,24 +887,13 @@ export function TripActivity({
     items,
     trip,
     now,
-    trip.timezone,
+    localTimezone,
     chosenStopId || undefined,
   );
   const todayItems =
     today.state === "trip-finished" || today.state === "before-trip"
       ? []
-      : items.filter(
-          (item) =>
-            (item.plan_date ??
-              (item.starts_at
-                ? new Intl.DateTimeFormat("en-CA", {
-                    timeZone: trip.timezone,
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                  }).format(new Date(item.starts_at))
-                : null)) === today.day,
-        );
+      : stopsForTripDay(items, today.day, localTimezone);
   const upcoming = today.next;
   const current = today.current;
   const heroStop = chosenStopId ? (current ?? upcoming) : upcoming;
@@ -1105,10 +1123,11 @@ export function TripActivity({
                         {
                           dateStyle: "medium",
                           timeStyle: "short",
-                          timeZone: trip.timezone,
+                          timeZone: localTimezone,
                         },
                       )
-                    : tr("Time to be confirmed", "รอยืนยันเวลา")}
+                    : tr("Time to be confirmed", "รอยืนยันเวลา")}{" "}
+                  · {localTimezone}
                 </p>
                 {heroStop.address && <p>{heroStop.address}</p>}
                 {heroStop.meeting_info && <p>{heroStop.meeting_info}</p>}
@@ -1196,9 +1215,10 @@ export function TripActivity({
                         {
                           dateStyle: "medium",
                           timeStyle: "short",
-                          timeZone: trip.timezone,
+                          timeZone: localTimezone,
                         },
-                      )}
+                      )}{" "}
+                      · {localTimezone}
                     </p>
                   )}
                   {item.address && <p>{item.address}</p>}
@@ -1210,7 +1230,21 @@ export function TripActivity({
                   )}
                   {organizer && !senior && (
                     <>
-                      <button type="button" onClick={() => setEditing(item)}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditing(item);
+                          setStopEditorOpen(true);
+                          requestAnimationFrame(() => {
+                            if (stopEditor.current) {
+                              stopEditor.current.open = true;
+                              revealEditor(
+                                stopEditor.current.querySelector("form"),
+                              );
+                            }
+                          });
+                        }}
+                      >
                         {tr("Edit stop", "แก้ไขจุดหมาย")}
                       </button>
                       <button
@@ -1224,13 +1258,26 @@ export function TripActivity({
                 </article>
               ))}
               {organizer && !senior && (
-                <details class="stop-editor" open={!!editing}>
+                <details
+                  class="stop-editor"
+                  ref={stopEditor}
+                  open={stopEditorOpen}
+                  onToggle={(event) => {
+                    setStopEditorOpen(event.currentTarget.open);
+                    revealOpenEditor(event);
+                  }}
+                >
                   <summary>
                     {editing
                       ? tr("Edit stop", "แก้ไขจุดหมาย")
                       : tr("Add a stop", "เพิ่มจุดหมาย")}
                   </summary>
-                  <form key={editing?.id ?? "new-stop"} onSubmit={saveItem}>
+                  <form
+                    class="editor-panel"
+                    tabIndex={-1}
+                    key={editing?.id ?? "new-stop"}
+                    onSubmit={saveItem}
+                  >
                     <h3>
                       {editing
                         ? tr("Edit stop", "แก้ไขจุดหมาย")
@@ -1256,17 +1303,14 @@ export function TripActivity({
                           editing?.starts_at
                             ? toTripLocal(
                                 editing.starts_at,
-                                trip.timezone,
+                                localTimezone,
                               ).slice(0, 10)
-                            : trip.start_date
+                            : (editing?.plan_date ?? tonightDate)
                         }
                       />
                     </label>
                     <label>
-                      {tr(
-                        "Time in trip timezone (optional)",
-                        "เวลาในเขตเวลาของทริป (ไม่บังคับ)",
-                      )}
+                      {tr("Local time (optional)", "เวลาท้องถิ่น (ไม่บังคับ)")}
                       <input
                         name="time"
                         type="time"
@@ -1274,13 +1318,13 @@ export function TripActivity({
                           editing?.starts_at
                             ? toTripLocal(
                                 editing.starts_at,
-                                trip.timezone,
+                                localTimezone,
                               ).slice(11)
                             : ""
                         }
                       />
                     </label>
-                    <p>{trip.timezone}</p>
+                    <p>{localTimezone}</p>
                     <label>
                       {tr("Address", "ที่อยู่")}
                       <input
@@ -1344,7 +1388,13 @@ export function TripActivity({
                     </label>
                     <button>{tr("Save stop", "บันทึกจุดหมาย")}</button>
                     {editing && (
-                      <button type="button" onClick={() => setEditing(null)}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditing(null);
+                          setStopEditorOpen(false);
+                        }}
+                      >
                         {tr("Cancel", "ยกเลิก")}
                       </button>
                     )}
@@ -1401,7 +1451,7 @@ export function TripActivity({
                                 ).toLocaleString(thai ? "th-TH" : "en", {
                                   dateStyle: "medium",
                                   timeStyle: "short",
-                                  timeZone: trip.timezone,
+                                  timeZone: localTimezone,
                                 })}
                               </time>
                             )}
@@ -1419,7 +1469,7 @@ export function TripActivity({
         </>
       ) : tab === "expenses" ? (
         <>
-          <details class="expense-entry">
+          <details class="expense-entry" onToggle={revealOpenEditor}>
             <summary>
               {tr("Add shared expense", "เพิ่มค่าใช้จ่ายส่วนกลาง")}
             </summary>
@@ -1430,7 +1480,7 @@ export function TripActivity({
                 "กรอกจำนวนเงินตามสกุลเงินของทริป เศษจากการหารจะแบ่งให้ผู้เดินทางคนแรกที่เลือก",
               )}
             </p>
-            <form onSubmit={saveExpense}>
+            <form class="editor-panel" tabIndex={-1} onSubmit={saveExpense}>
               <label>
                 {tr("What was it for?", "ค่าอะไร")}
                 <input name="description" required maxLength={240} />
@@ -1652,7 +1702,7 @@ export function TripActivity({
                               {
                                 dateStyle: "medium",
                                 timeStyle: "short",
-                                timeZone: trip.timezone,
+                                timeZone: localTimezone,
                               },
                             )}
                             {previous && (
@@ -1687,11 +1737,15 @@ export function TripActivity({
                   </details>
                 ) : null}
                 {organizer && !senior && (
-                  <details>
+                  <details onToggle={revealOpenEditor}>
                     <summary>
                       {tr("Correct expense", "แก้ไขค่าใช้จ่าย")}
                     </summary>
-                    <form onSubmit={(event) => void correctExpense(event, e)}>
+                    <form
+                      class="editor-panel"
+                      tabIndex={-1}
+                      onSubmit={(event) => void correctExpense(event, e)}
+                    >
                       <label>
                         {tr("Description", "รายละเอียด")}
                         <input
@@ -1797,7 +1851,7 @@ export function TripActivity({
             {trip.start_date} — {trip.end_date}
           </p>
           <p>
-            {tr("Time zone", "เขตเวลา")}: {trip.timezone}
+            {tr("Local timezone", "เขตเวลาท้องถิ่น")}: {localTimezone}
           </p>
           <p>
             {tr("Trip status", "สถานะทริป")}: {trip.status}
@@ -1892,11 +1946,11 @@ function EmergencyCard({
       )}
       {message && <p role="status">{message}</p>}
       {organizer && (
-        <details>
+        <details onToggle={revealOpenEditor}>
           <summary>
             {tr("Edit family contact", "แก้ไขผู้ติดต่อในครอบครัว")}
           </summary>
-          <form onSubmit={save}>
+          <form class="editor-panel" tabIndex={-1} onSubmit={save}>
             <label>
               {tr("Family contact", "ผู้ติดต่อในครอบครัว")}
               <input

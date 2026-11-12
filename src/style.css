@@ -352,6 +352,9 @@ fieldset {
   background: #f8f5ed;
   box-shadow: none;
 }
+.editor-panel {
+  scroll-margin-block-start: 8rem;
+}
 details > summary {
   cursor: pointer;
   font-weight: 700;
@@ -404,6 +407,144 @@ details > summary {
   form {
     padding: 1rem;
     border-radius: 18px;
+  }
+
+  /* Keep the trip readable while reducing the amount of scrolling on phones. */
+  main {
+    padding-bottom: 2.5rem;
+  }
+  h1 {
+    font-size: clamp(1.8rem, 8vw, 2.35rem);
+    margin: 0.25rem 0 0.9rem;
+  }
+  h2 {
+    font-size: 1.3rem;
+    margin: 0.15rem 0 0.55rem;
+  }
+  h3 {
+    font-size: 1.05rem;
+    margin: 0.9rem 0 0.45rem;
+  }
+  p {
+    margin: 0.3rem 0 0.55rem;
+  }
+  section,
+  form {
+    margin: 0.65rem 0;
+  }
+  label {
+    margin: 0.6rem 0;
+  }
+  input,
+  textarea,
+  select {
+    min-height: 48px;
+    padding: 0.55rem 0.7rem;
+  }
+  button {
+    min-height: 48px;
+    padding: 0.55rem 0.8rem;
+  }
+  .activity {
+    margin: 0.5rem 0;
+  }
+  .plan {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .plan > section {
+    padding: 0;
+    margin: 0.45rem 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .plan-form {
+    padding: 0.65rem;
+  }
+  .activity-heading {
+    padding: 0.45rem 0;
+  }
+  .activity-tabs {
+    gap: 0.2rem;
+    padding-bottom: 0.45rem;
+    margin: 0.35rem 0 0.8rem;
+  }
+  .activity-tabs button {
+    min-width: 0;
+    min-height: 46px;
+    padding-inline: 0.25rem;
+    font-size: 0.9rem;
+  }
+  .next-stop {
+    padding: 0.9rem;
+    margin: 0.65rem 0 0.9rem;
+    border-radius: 15px;
+  }
+  .next-stop h3 {
+    font-size: 1.35rem;
+  }
+  .tonight-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem 0.6rem;
+    padding: 0.75rem 0.9rem;
+    margin: 0.65rem 0 0.9rem;
+  }
+  .stop,
+  .plan-night,
+  .plan-stay,
+  .plan-activity,
+  .stop-editor,
+  .expense-entry {
+    padding: 0.7rem 0.8rem;
+    margin: 0.45rem 0;
+    border-radius: 13px;
+  }
+  .plan-activity {
+    margin-left: 0.15rem;
+  }
+  .plan-form {
+    margin: 0.55rem 0;
+  }
+  .help-card,
+  .danger-zone {
+    margin-top: 0.65rem;
+    padding: 0.75rem;
+  }
+  .attendance,
+  .balance {
+    padding: 0.4rem 0.55rem;
+  }
+  .queue-item {
+    padding: 0.65rem 0;
+  }
+  .trip-cards {
+    gap: 0.6rem;
+  }
+  .trip-cards button {
+    min-height: 60px;
+  }
+  .senior {
+    font-size: 1.2rem;
+  }
+  .senior h2 {
+    font-size: 1.8rem;
+  }
+  .senior button,
+  .senior a,
+  .senior input,
+  .senior select {
+    min-height: 60px;
+    font-size: 1.08rem;
+  }
+  .senior .next-stop {
+    font-size: 1.2rem;
+  }
+  .senior .next-stop button,
+  .senior .next-stop a {
+    min-height: 56px;
   }
 }
 
@@ -468,5 +609,14 @@ details > summary {
   }
   .trip-cards {
     grid-template-columns: 1fr;
+  }
+  .trip-cards > *,
+  section,
+  form,
+  .plan-night,
+  .plan-stay,
+  .plan-activity {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 }

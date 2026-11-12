@@ -13,6 +13,7 @@ test("upgrade: nightly ranges, stays, dated expenses, correction and deletion en
       "202610280001_foundation.sql",
       "202610280002_itinerary_checkins_expenses.sql",
       "202610280003_daily_planning.sql",
+      "202611110006_local_activity_dates.sql",
     ])
       await db.exec(readFileSync(`supabase/migrations/${file}`, "utf8"));
     const a = "00000000-0000-4000-8000-000000000001",
@@ -102,11 +103,29 @@ test("upgrade: nightly ranges, stays, dated expenses, correction and deletion en
         `select (upsert_itinerary_item(p_trip_id=>'${trip}',p_title=>'Dinner',p_starts_at=>'2026-11-01T16:00:00Z',p_plan_date=>'2026-11-02',p_transport_mode=>'flight')).id`,
       )
     ).rows[0].id;
+    const localDayItem = (
+      await db.query<{ plan_date: Date }>(
+        `select (upsert_itinerary_item(p_trip_id=>'${trip}',p_title=>'Local day',p_starts_at=>'2026-11-01T16:00:00Z',p_plan_date=>'2026-11-01')).plan_date plan_date`,
+      )
+    ).rows[0];
+    expect(localDayItem.plan_date).toEqual(new Date("2026-11-01T00:00:00.000Z"));
     await expect(
       db.query(
-        `select upsert_itinerary_item(p_trip_id=>'${trip}',p_title=>'Wrong day',p_starts_at=>'2026-11-01T16:00:00Z',p_plan_date=>'2026-11-01')`,
+        `select upsert_itinerary_item(p_trip_id=>'${trip}',p_title=>'Stale edit',p_starts_at=>'2026-11-01T16:00:00Z',p_item_id=>'${item}',p_expected_version=>0,p_plan_date=>'2026-11-01')`,
       ),
-    ).rejects.toThrow("match");
+    ).rejects.toThrow("version conflict");
+    await expect(
+      db.query(
+        `select upsert_itinerary_item(p_trip_id=>'${trip}',p_title=>'Outside trip',p_starts_at=>'2026-10-31T16:00:00Z',p_plan_date=>'2026-10-31')`,
+      ),
+    ).rejects.toThrow("within the trip");
+    await db.exec(`set request.jwt.claim.sub='${b}'`);
+    await expect(
+      db.query(
+        `select upsert_itinerary_item(p_trip_id=>'${trip}',p_title=>'Unauthorized',p_starts_at=>'2026-11-01T16:00:00Z',p_plan_date=>'2026-11-01')`,
+      ),
+    ).rejects.toThrow("Organizer");
+    await db.exec(`set request.jwt.claim.sub='${a}'`);
     const op = "00000000-0000-4000-8000-000000000010";
     const expenseArgs = `'${trip}','${member}','100','JPY','Dinner','[{"member_id":"${other}","owed_minor":"100"}]','${op}','2026-11-01','20:30'`;
     const expense = (

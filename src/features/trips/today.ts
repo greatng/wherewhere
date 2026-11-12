@@ -25,11 +25,9 @@ export function stopsForTripDay<T extends TodayStop>(
 ) {
   return items
     .filter((item) => {
-      const itemDay =
-        item.plan_date ??
-        (item.starts_at
-          ? tripDateAt(new Date(item.starts_at), timezone)
-          : null);
+      const itemDay = item.starts_at
+        ? tripDateAt(new Date(item.starts_at), timezone)
+        : item.plan_date;
       return itemDay === day;
     })
     .sort((a, b) => {

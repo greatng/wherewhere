@@ -52,6 +52,18 @@ These screenshots are fixture-backed previews. They show the UI at desktop and m
 
 ![Mobile itinerary fixture preview](../artifacts/mobile-chromium-itinerary-fixture-preview.png)
 
+## Plan editors and local activity time
+
+![Desktop accommodation editor](../artifacts/desktop-chromium-accommodation-editor-fixture-preview.png)
+
+![Mobile accommodation editor](../artifacts/mobile-chromium-accommodation-editor-fixture-preview.png)
+
+The Plan regressions check that add and edit forms scroll into view, that selecting another night while editing keeps the form usable, and that editing a closed accommodation form saves the same stay ID with its next version. The mobile editor preview shows the saved fields and both actions within the compact layout. The [compact mobile Plan preview](../artifacts/mobile-chromium-plan-fixture-preview.png) shows the tab layout.
+
+Local-time regressions run with an America/Los_Angeles browser and an Asia/Bangkok trip. They cover a legacy Nov 2 UTC timestamp displayed as Nov 1 at 18:00 locally, an unchanged save preserving its original instant, and a newly added local activity edited in Today and Plan. The preview test also checks that Today, Plan, Expenses, and Trip have no horizontal overflow at both viewport sizes.
+
+The complete browser suite passed with 22 desktop and mobile Chromium runs: `npx playwright test e2e/trip-flow.spec.ts`.
+
 ## Remaining release verification
 
 The browser fixture does not exercise deployed Supabase Auth or Edge Function networking, rate limiting through the production proxy, real organizer-assisted recovery, multiple real browser profiles, browser storage loss, or installed PWA behavior. Before release, repeat the README manual acceptance steps against a configured Supabase project and test installation, offline recovery, and persisted sessions on physical iOS and Android devices.

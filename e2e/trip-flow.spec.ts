@@ -185,9 +185,7 @@ async function installFixture(
           aud: "authenticated",
           role: "authenticated",
           email: guest ? undefined : "fixture@example.test",
-          email_confirmed_at: guest
-            ? undefined
-            : "2026-01-01T00:00:00Z",
+          email_confirmed_at: guest ? undefined : "2026-01-01T00:00:00Z",
           is_anonymous: guest,
           app_metadata: guest
             ? { provider: "anonymous", providers: ["anonymous"] }
@@ -247,8 +245,12 @@ async function installFixture(
     }
     let result: unknown = null;
     if (fn === "upsert_itinerary_item") {
+      const prior = args.p_item_id
+        ? itinerary.find((candidate) => candidate.id === args.p_item_id)
+        : undefined;
       const item = {
-        id: "stop-added",
+        ...prior,
+        id: prior?.id ?? "stop-added",
         trip_id: tripId,
         title: args.p_title,
         starts_at: args.p_starts_at,
@@ -257,10 +259,14 @@ async function installFixture(
         notes: args.p_notes,
         transport_mode: args.p_transport_mode,
         position: args.p_position,
-        version: 1,
+        version: Number(prior?.version ?? 0) + 1,
         plan_date: args.p_plan_date ?? null,
       };
-      itinerary = [...itinerary, item];
+      itinerary = prior
+        ? itinerary.map((candidate) =>
+            candidate.id === prior.id ? item : candidate,
+          )
+        : [...itinerary, item];
       result = item;
     } else if (fn === "set_nightly_destinations") {
       const from = String(args.p_start_date);
@@ -286,17 +292,25 @@ async function installFixture(
       ];
       result = nights.filter((n) => dates.includes(String(n.night_date)));
     } else if (fn === "upsert_stay") {
+      const prior = args.p_stay_id
+        ? stays.find((candidate) => candidate.id === args.p_stay_id)
+        : undefined;
       const stay = {
-        id: "stay-added",
+        ...prior,
+        id: prior?.id ?? "stay-added",
         trip_id: tripId,
         check_in_date: args.p_check_in_date,
         check_out_date: args.p_check_out_date,
         name: args.p_name,
         address: args.p_address,
         phone: args.p_phone,
-        version: 1,
+        version: Number(prior?.version ?? 0) + 1,
       };
-      stays = [...stays, stay];
+      stays = prior
+        ? stays.map((candidate) =>
+            candidate.id === prior.id ? stay : candidate,
+          )
+        : [...stays, stay];
       result = stay;
     } else if (fn === "create_expense") {
       savedExpense = args;
@@ -376,10 +390,14 @@ async function installFixture(
     getSavedCheckIn: () => savedCheckIn,
     getSavedCorrection: () => savedCorrection,
     getRpcCalls: () => rpcCalls,
-    failNextCheckIn: () => { failCheckInOnce = true; },
-    getCheckInOperationIds: () => rpcCalls
-      .filter((call) => call.fn === "check_in")
-      .map((call) => call.args.p_operation_id),
+    getStays: () => stays,
+    failNextCheckIn: () => {
+      failCheckInOnce = true;
+    },
+    getCheckInOperationIds: () =>
+      rpcCalls
+        .filter((call) => call.fn === "check_in")
+        .map((call) => call.args.p_operation_id),
     getCheckInCount: () => checkIns.length,
   };
 }
@@ -390,8 +408,27 @@ async function openTrip(page: import("@playwright/test").Page) {
   await expect(tripCard).toBeVisible();
   await tripCard.click();
   await expect(tripCard).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("heading", { name: "Bangkok Weekend" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Bangkok Weekend" }),
+  ).toBeVisible();
   return tripCard;
+}
+
+async function expectInViewport(locator: import("@playwright/test").Locator) {
+  await expect(locator).toBeVisible();
+  await expect
+    .poll(async () => {
+      const box = await locator.boundingBox();
+      const viewportHeight = await locator
+        .page()
+        .evaluate(() => window.innerHeight);
+      const scrollY = await locator.page().evaluate(() => window.scrollY);
+      if (!box) return "missing";
+      return box.y >= 0 && box.y + box.height <= viewportHeight
+        ? "fully-visible"
+        : `offscreen y=${box.y.toFixed(1)} bottom=${(box.y + box.height).toFixed(1)} viewport=${viewportHeight} scrollY=${scrollY.toFixed(1)}`;
+    })
+    .toBe("fully-visible");
 }
 
 test.beforeEach(async ({ page }) => {
@@ -407,7 +444,9 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
   await expect(page.getByRole("link", { name: "PaiKan" })).toBeFocused();
   await openTrip(page);
   await expect(
-    page.getByRole("region", { name: "Choose a trip" }).locator('[aria-pressed="true"]'),
+    page
+      .getByRole("region", { name: "Choose a trip" })
+      .locator('[aria-pressed="true"]'),
   ).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Wat Arun" })).toBeVisible();
   const todayCard = page.locator(".next-stop");
@@ -429,7 +468,7 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
   await stopEditor.getByLabel("Address").fill("Kamphaeng Phet 2 Road");
   await stopEditor.getByLabel("Notes").fill("Arrive before noon");
   await page.getByLabel("Day").fill("2026-11-02");
-  await page.getByLabel("Time in trip timezone (optional)").fill("09:00");
+  await page.getByLabel("Local time (optional)").fill("09:00");
   await page.getByLabel("Transport").selectOption("train");
   await page.getByRole("button", { name: "Save stop" }).click();
   await expect(
@@ -620,7 +659,7 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await plan
     .getByRole("textbox", { name: "Activity" })
     .fill("Doi Suthep visit");
-  await plan.getByLabel("Time in trip timezone").fill("09:30");
+  await plan.getByLabel("Local time").fill("09:30");
   await plan.getByLabel("Address").last().fill("Mueang Chiang Mai");
   await plan.getByLabel("Travel mode into activity").selectOption("taxi");
   await plan.getByRole("button", { name: "Save activity" }).click();
@@ -645,6 +684,237 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await expect(
     plan.getByText("Doi Suthep visit", { exact: true }),
   ).toBeVisible();
+});
+
+test.describe("Plan editor regressions", () => {
+  test("Plan editors scroll into view, and closed accommodation Edit opens prefilled and updates the same stay", async ({
+    page,
+  }, testInfo) => {
+    const fixtureState = await installFixture(page);
+    await page.goto("/");
+    await openTrip(page);
+    const tabs = page.getByRole("navigation", { name: "Trip sections" });
+    await tabs.getByRole("button", { name: "Plan" }).click();
+    const plan = page.getByRole("region", { name: "Trip plan" });
+
+    await plan
+      .getByText("Add city for a night or range", { exact: true })
+      .click();
+    const nightForm = plan.locator("form.plan-form").first();
+    await expectInViewport(nightForm.getByLabel("From (night of)"));
+    await nightForm.getByLabel("From (night of)").fill("2026-11-03");
+    await nightForm.getByLabel("Through (inclusive)").fill("2026-11-03");
+    await nightForm
+      .getByLabel("City", { exact: true })
+      .first()
+      .fill("Test city");
+    await nightForm.getByRole("button", { name: "Save destination" }).click();
+    await plan
+      .locator(".plan-night")
+      .nth(1)
+      .getByRole("button", { name: "Edit this night" })
+      .click();
+    const editNightForm = plan.locator("form.plan-form").first();
+    await expectInViewport(editNightForm.getByLabel("From (night of)"));
+    // Selecting another item while the editor is open must keep the editor usable.
+    await plan
+      .locator(".plan-night")
+      .nth(0)
+      .getByRole("button", { name: "Edit this night" })
+      .click();
+    await expectInViewport(editNightForm.getByLabel("From (night of)"));
+
+    await plan.getByText("Add accommodation", { exact: true }).click();
+    const addStayForm = plan.locator(".plan-stays form.plan-form");
+    await expectInViewport(addStayForm.getByLabel("Name", { exact: true }));
+    await addStayForm
+      .getByLabel("Name", { exact: true })
+      .fill("Riverside Hotel");
+    await addStayForm.getByLabel("Check-in").fill("2026-11-01");
+    await addStayForm.getByLabel("Check-out (exclusive)").fill("2026-11-03");
+    await addStayForm.getByLabel("Address").fill("1 River Road");
+    await addStayForm.getByLabel("Phone").fill("+66 2 123 4567");
+    await addStayForm
+      .getByRole("button", { name: "Save accommodation" })
+      .click();
+
+    const originalStay = plan
+      .locator(".plan-stay")
+      .filter({ hasText: "River House" });
+    await originalStay.getByRole("button", { name: "Edit" }).click();
+    const editStayForm = plan.locator(".plan-stays form.plan-form");
+    await expectInViewport(editStayForm.getByLabel("Name", { exact: true }));
+    await expect(editStayForm.getByLabel("Name", { exact: true })).toHaveValue(
+      "River House",
+    );
+    await expect(editStayForm.getByLabel("Check-in")).toHaveValue("2026-11-01");
+    await expect(editStayForm.getByLabel("Check-out (exclusive)")).toHaveValue(
+      "2026-11-03",
+    );
+    await expect(editStayForm.getByLabel("Address")).toHaveValue(
+      "1 River Road",
+    );
+    await expect(editStayForm.getByLabel("Phone")).toHaveValue(
+      "+66 2 123 4567",
+    );
+    await editStayForm.screenshot({
+      path: `artifacts/${testInfo.project.name}-accommodation-editor-fixture-preview.png`,
+    });
+    await editStayForm
+      .getByLabel("Name", { exact: true })
+      .fill("River House Updated");
+    await editStayForm
+      .getByRole("button", { name: "Save accommodation" })
+      .click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_stay")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_stay_id: "stay-1",
+        p_expected_version: 1,
+        p_name: "River House Updated",
+      });
+    await expect
+      .poll(() => fixtureState.getStays().find((stay) => stay.id === "stay-1"))
+      .toMatchObject({
+        id: "stay-1",
+        name: "River House Updated",
+        version: 2,
+      });
+    await expect(
+      plan.locator(".plan-stay").filter({ hasText: "River House Updated" }),
+    ).toBeVisible();
+
+    const addActivityButton = plan
+      .locator(".plan-night")
+      .nth(1)
+      .getByRole("button", { name: "Add activity" });
+    await addActivityButton.click();
+    await expectInViewport(
+      plan.locator(".plan-activity-editor").getByLabel("Day"),
+    );
+  });
+});
+
+test.describe("Browser timezone differs from trip timezone", () => {
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  test("Today stop and Plan activity edits use the device local date and time", async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date("2026-11-02T17:00:00.000Z"));
+    const fixtureState = await installFixture(page);
+    await page.goto("/");
+    await openTrip(page);
+
+    await page.locator(".stop-editor summary").click();
+    const stopEditor = page.locator(".stop-editor");
+    await expectInViewport(stopEditor.getByLabel("Place or activity"));
+    await stopEditor.getByLabel("Place or activity").fill("LA breakfast");
+    await stopEditor.getByLabel("Day").fill("2026-11-02");
+    await stopEditor.getByLabel("Local time (optional)").fill("09:30");
+    await stopEditor.getByRole("button", { name: "Save stop" }).click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_itinerary_item")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_title: "LA breakfast",
+        p_item_id: null,
+        p_plan_date: "2026-11-02",
+        p_starts_at: "2026-11-02T17:30:00.000Z",
+      });
+
+    const stop = page
+      .locator("article.stop")
+      .filter({ hasText: "LA breakfast" });
+    await expect(stop).toBeVisible();
+    await stop.getByRole("button", { name: "Edit stop" }).click();
+    await expectInViewport(stopEditor.getByLabel("Place or activity"));
+    await expect(stopEditor.getByLabel("Day")).toHaveValue("2026-11-02");
+    await expect(stopEditor.getByLabel("Local time (optional)")).toHaveValue(
+      "09:30",
+    );
+    await stopEditor.getByLabel("Local time (optional)").fill("10:00");
+    await stopEditor.getByRole("button", { name: "Save stop" }).click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_itinerary_item")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_item_id: "stop-added",
+        p_expected_version: 1,
+        p_plan_date: "2026-11-02",
+        p_starts_at: "2026-11-02T18:00:00.000Z",
+      });
+
+    await page
+      .getByRole("navigation", { name: "Trip sections" })
+      .getByRole("button", { name: "Plan" })
+      .click();
+    const plan = page.getByRole("region", { name: "Trip plan" });
+    const legacyActivity = plan
+      .locator(".plan-activity")
+      .filter({ hasText: "Wat Arun" });
+    await legacyActivity.getByRole("button", { name: "Edit activity" }).click();
+    const legacyEditor = plan.locator(".plan-activity-editor");
+    await expectInViewport(legacyEditor.getByLabel("Day"));
+    await expect(legacyEditor.getByLabel("Day")).toHaveValue("2026-11-01");
+    await expect(legacyEditor.getByLabel("Local time")).toHaveValue("18:00");
+    await legacyEditor.getByRole("button", { name: "Save activity" }).click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_itinerary_item")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_item_id: "stop-1",
+        p_expected_version: 1,
+        p_plan_date: "2026-11-01",
+        p_starts_at: "2026-11-02T02:00:00.000Z",
+      });
+
+    const activity = plan
+      .locator(".plan-activity")
+      .filter({ hasText: "LA breakfast" });
+    await activity.getByRole("button", { name: "Edit activity" }).click();
+    const editor = plan.locator(".plan-activity-editor");
+    await expectInViewport(editor.getByLabel("Day"));
+    await expect(editor.getByLabel("Day")).toHaveValue("2026-11-02");
+    await expect(editor.getByLabel("Local time")).toHaveValue("10:00");
+    await editor.getByLabel("Local time").fill("10:15");
+    await editor.getByRole("button", { name: "Save activity" }).click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_itinerary_item")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_item_id: "stop-added",
+        p_expected_version: 2,
+        p_plan_date: "2026-11-02",
+        p_starts_at: "2026-11-02T18:15:00.000Z",
+      });
+  });
 });
 
 test("trip creation carries its date range; archive and restore work; wrong deletion title sends no RPC", async ({
@@ -676,7 +946,9 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Trip" })
     .click();
-  await expect(page.getByText("Trip settings and access", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Trip settings and access", { exact: true }),
+  ).toBeVisible();
   await page.getByText("Trip settings and access", { exact: true }).click();
   await page.getByRole("button", { name: "Archive trip" }).click();
   await expect
@@ -753,7 +1025,10 @@ test("offline check-in stays queued until reconnect, then receives fixture ackno
     });
 });
 
-test("failed offline action can be inspected and retried with its original ID", async ({ page, context }, testInfo) => {
+test("failed offline action can be inspected and retried with its original ID", async ({
+  page,
+  context,
+}, testInfo) => {
   const fixtureState = await installFixture(page);
   await page.goto("/");
   await openTrip(page);
@@ -773,11 +1048,16 @@ test("failed offline action can be inspected and retried with its original ID", 
   expect(originalId).toEqual(expect.any(String));
   await operation.getByRole("button", { name: "Retry" }).click();
   await expect(operation).toHaveCount(0);
-  expect(fixtureState.getCheckInOperationIds()).toEqual([originalId, originalId]);
+  expect(fixtureState.getCheckInOperationIds()).toEqual([
+    originalId,
+    originalId,
+  ]);
   expect(fixtureState.getCheckInCount()).toBe(1);
 });
 
-test("guest account warns before sign-out and can stay signed in", async ({ page }) => {
+test("guest account warns before sign-out and can stay signed in", async ({
+  page,
+}) => {
   await installFixture(page, { guest: true });
   await page.goto("/");
   await page.getByRole("button", { name: "Guest account" }).click();
@@ -786,7 +1066,9 @@ test("guest account warns before sign-out and can stay signed in", async ({ page
   await expect(warning).toContainText("guest account can lose access");
   await expect(warning).toContainText("supervised recovery");
   await warning.getByRole("button", { name: "Keep signed in" }).click();
-  await expect(page.getByRole("button", { name: "Guest account" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Guest account" }),
+  ).toBeVisible();
 });
 
 test("email account confirms sign-out of this device", async ({ page }) => {
@@ -802,7 +1084,9 @@ test("email account confirms sign-out of this device", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("Senior view persists on this device and hides editing tabs", async ({ page }, testInfo) => {
+test("Senior view persists on this device and hides editing tabs", async ({
+  page,
+}, testInfo) => {
   await installFixture(page);
   await page.goto("/");
   await page.screenshot({
@@ -811,21 +1095,27 @@ test("Senior view persists on this device and hides editing tabs", async ({ page
   });
   await openTrip(page);
   await page.getByRole("button", { name: "Senior view" }).click();
-  await expect(page.getByRole("button", { name: "Exit senior view" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Exit senior view" }),
+  ).toBeVisible();
   const tabs = page.getByRole("navigation", { name: "Trip sections" });
   await expect(tabs.getByRole("button", { name: "Plan" })).toHaveCount(0);
   await expect(tabs.getByRole("button", { name: "Expenses" })).toHaveCount(0);
   await expect(tabs).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit stop" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Itinerary" })).toHaveCount(0);
-  await expect(page.getByText("Niran — Not checked in", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Niran — Not checked in", { exact: true }),
+  ).toHaveCount(0);
   await page.locator(".activity").screenshot({
     path: `artifacts/${testInfo.project.name}-senior-fixture-preview.png`,
     style: "header, .activity-tabs { position: static !important; }",
   });
   await page.reload();
   await openTrip(page);
-  await expect(page.getByRole("button", { name: "Exit senior view" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Exit senior view" }),
+  ).toBeVisible();
 });
 
 test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok date", async ({
@@ -837,17 +1127,18 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
   await openTrip(page);
   const activity = page.locator(".activity");
   const screenshot = async (tab: string) => {
+    const { viewportWidth, documentWidth } = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(documentWidth, `${tab} tab should not scroll horizontally`).toBeLessThanOrEqual(
+      viewportWidth,
+    );
     await activity.screenshot({
       path: `artifacts/${testInfo.project.name}-${tab}-fixture-preview.png`,
       style: "header, .activity-tabs { position: static !important; }",
     });
   };
-  const viewportWidth = await page.evaluate(() => window.innerWidth);
-  const documentWidth = await page.evaluate(
-    () => document.documentElement.scrollWidth,
-  );
-  expect(documentWidth).toBeLessThanOrEqual(viewportWidth);
-
   await expect(
     page.getByRole("region", { name: "Tonight destination and accommodation" }),
   ).toContainText("Bangkok");

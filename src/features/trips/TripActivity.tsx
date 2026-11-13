@@ -211,7 +211,7 @@ export function TripActivity({
   tripSettings?: ComponentChildren;
 }) {
   const tr = (en: string, th: string) => (thai ? th : en);
-  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const destinationTimezone = trip.timezone;
   const approved = members.filter(
     (m) => m.trip_id === trip.id && m.status === "approved",
   );
@@ -354,7 +354,7 @@ export function TripActivity({
   });
   const tonightDate = (() => {
     const date = new Intl.DateTimeFormat("en-CA", {
-      timeZone: localTimezone,
+      timeZone: destinationTimezone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -366,7 +366,7 @@ export function TripActivity({
         : date;
   })();
   const tripToday = new Intl.DateTimeFormat("en-CA", {
-    timeZone: localTimezone,
+    timeZone: destinationTimezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -625,7 +625,7 @@ export function TripActivity({
         );
       starts =
         date && time
-          ? tripWallTimeToIso(`${date}T${time}`, localTimezone)
+          ? tripWallTimeToIso(`${date}T${time}`, destinationTimezone)
           : null;
     } catch (error) {
       setNotice(
@@ -887,18 +887,18 @@ export function TripActivity({
     items,
     trip,
     now,
-    localTimezone,
+    destinationTimezone,
     chosenStopId || undefined,
   );
   const todayItems =
     today.state === "trip-finished" || today.state === "before-trip"
       ? []
-      : stopsForTripDay(items, today.day, localTimezone);
+      : stopsForTripDay(items, today.day, destinationTimezone);
   const upcoming = today.next;
   const current = today.current;
   const heroStop = chosenStopId ? (current ?? upcoming) : upcoming;
   return (
-    <section class={senior ? "activity senior" : "activity"}>
+    <section class={senior ? "activity senior" : tab === "plan" ? "activity activity-plan" : "activity"}>
       <div class="activity-heading">
         <div>
           <h2>{tr("Trip details", "รายละเอียดทริป")}</h2>
@@ -1123,11 +1123,11 @@ export function TripActivity({
                         {
                           dateStyle: "medium",
                           timeStyle: "short",
-                          timeZone: localTimezone,
+                          timeZone: destinationTimezone,
                         },
                       )
                     : tr("Time to be confirmed", "รอยืนยันเวลา")}{" "}
-                  · {localTimezone}
+                  · {destinationTimezone}
                 </p>
                 {heroStop.address && <p>{heroStop.address}</p>}
                 {heroStop.meeting_info && <p>{heroStop.meeting_info}</p>}
@@ -1215,10 +1215,10 @@ export function TripActivity({
                         {
                           dateStyle: "medium",
                           timeStyle: "short",
-                          timeZone: localTimezone,
+                          timeZone: destinationTimezone,
                         },
                       )}{" "}
-                      · {localTimezone}
+                      · {destinationTimezone}
                     </p>
                   )}
                   {item.address && <p>{item.address}</p>}
@@ -1303,14 +1303,14 @@ export function TripActivity({
                           editing?.starts_at
                             ? toTripLocal(
                                 editing.starts_at,
-                                localTimezone,
+                                destinationTimezone,
                               ).slice(0, 10)
                             : (editing?.plan_date ?? tonightDate)
                         }
                       />
                     </label>
                     <label>
-                      {tr("Local time (optional)", "เวลาท้องถิ่น (ไม่บังคับ)")}
+                      {tr("Destination time (optional)", "เวลาปลายทาง (ไม่บังคับ)")}
                       <input
                         name="time"
                         type="time"
@@ -1318,13 +1318,13 @@ export function TripActivity({
                           editing?.starts_at
                             ? toTripLocal(
                                 editing.starts_at,
-                                localTimezone,
+                                destinationTimezone,
                               ).slice(11)
                             : ""
                         }
                       />
                     </label>
-                    <p>{localTimezone}</p>
+                    <p>{destinationTimezone}</p>
                     <label>
                       {tr("Address", "ที่อยู่")}
                       <input
@@ -1451,7 +1451,7 @@ export function TripActivity({
                                 ).toLocaleString(thai ? "th-TH" : "en", {
                                   dateStyle: "medium",
                                   timeStyle: "short",
-                                  timeZone: localTimezone,
+                                  timeZone: destinationTimezone,
                                 })}
                               </time>
                             )}
@@ -1702,7 +1702,7 @@ export function TripActivity({
                               {
                                 dateStyle: "medium",
                                 timeStyle: "short",
-                                timeZone: localTimezone,
+                                timeZone: destinationTimezone,
                               },
                             )}
                             {previous && (
@@ -1851,7 +1851,7 @@ export function TripActivity({
             {trip.start_date} — {trip.end_date}
           </p>
           <p>
-            {tr("Local timezone", "เขตเวลาท้องถิ่น")}: {localTimezone}
+            {tr("Destination timezone", "เขตเวลาปลายทาง")}: {destinationTimezone}
           </p>
           <p>
             {tr("Trip status", "สถานะทริป")}: {trip.status}

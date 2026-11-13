@@ -101,3 +101,20 @@ Validation for US10–US12: 47 unit/component/database tests pass, including exi
 GitHub issue: https://github.com/greatng/wherewhere/issues/13
 
 As a traveler, I scan dates, cities and activities as one daily list, without boxes inside boxes. Days use dividers; activities are simple rows. Accommodation remains a separate list and forms retain a clear editing surface. Preserve readable text, touch targets, editor navigation and mobile width.
+
+
+## US14 — full-width Plan with SVG actions
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/14
+
+As a traveler I see activities directly in the workspace without parent card layers or nested indentation. As an organizer I use compact SVG pencil/trash controls for repeated editing actions, with accessible bilingual names, visible focus and touch-sized targets. Add actions retain text plus an SVG icon. Capture desktop/mobile previews and verify editor flows.
+
+
+## US15 — destination time independent of viewer location
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/15
+
+Correction to US10: local means destination local time. Activities entered as09:00 in Japan display and edit as09:00 Japan regardless of the device location. Use the configured trip destination timezone for Plan, Today and Tonight. Provide one organizer-controlled destination timezone setting for the trip, rather than per-activity selectors. Preserve existing saved timestamps and disclose this when correcting the setting. Verify in a browser using a different timezone.
+
+
+US14–US15 verification: 48 unit/component/database tests pass, including destination-time activity editing and organizer-only timezone correction with timestamp preservation. UI uses the trip destination timezone, superseding the device-local interpretation recorded in US10. One timezone is configured per trip; activities do not prompt for individual timezone selections.

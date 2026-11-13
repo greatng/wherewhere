@@ -145,29 +145,16 @@ describe("Plan editors", () => {
     })));
   });
 
-  it("edits and saves activity time in the device's local timezone", async () => {
-    const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const localParts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: localTimezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date("2026-11-02T02:30:00.000Z"));
-    const localDateParts = Object.fromEntries(localParts.map((part) => [part.type, part.value]));
-    const localDate = `${localDateParts.year}-${localDateParts.month}-${localDateParts.day}`;
-    const localTime = `${localDateParts.hour}:${localDateParts.minute}`;
+  it("edits and saves activity time in the destination timezone", async () => {
     renderPlan();
     await screen.findByText("Temple visit");
     fireEvent.click(screen.getByRole("button", { name: "Edit activity" }));
 
-    expect(await screen.findByDisplayValue(localTime)).toBeTruthy();
-    expect(screen.getByLabelText("Day")).toHaveValue(localDate);
+    expect(await screen.findByDisplayValue("09:30")).toBeTruthy();
+    expect(screen.getByLabelText("Day")).toHaveValue("2026-11-02");
     const editor = screen.getByLabelText("Activity").closest("form") as HTMLFormElement;
     expect(document.activeElement).toBe(editor);
-    fireEvent.change(screen.getByLabelText("Local time"), {
+    fireEvent.change(screen.getByLabelText("Destination time"), {
       target: { value: "10:15" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save activity" }));
@@ -177,8 +164,8 @@ describe("Plan editors", () => {
       expect.objectContaining({
         p_item_id: "activity-1",
         p_expected_version: 4,
-        p_starts_at: tripWallTimeToIso(`${localDate}T10:15`, localTimezone),
-        p_plan_date: localDate,
+        p_starts_at: tripWallTimeToIso("2026-11-02T10:15", "Asia/Bangkok"),
+        p_plan_date: "2026-11-02",
       }),
     ));
   });

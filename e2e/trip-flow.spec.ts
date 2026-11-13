@@ -19,6 +19,7 @@ type FixtureRpcArgs = {
   p_start_date?: string;
   p_end_date?: string;
   p_city?: string;
+  p_timezone?: string;
   p_replace?: boolean;
   p_expected_versions?: Record<string, number>;
   p_check_in_date?: string;
@@ -352,6 +353,8 @@ async function installFixture(
         expenses.find((expense) => expense.id === args.p_expense_id) ?? null;
     } else if (fn === "archive_trip" || fn === "restore_trip") {
       trip.status = fn === "archive_trip" ? "archived" : "active";
+    } else if (fn === "set_trip_timezone") {
+      trip.timezone = String(args.p_timezone);
     } else if (fn === "delete_trip") {
       trips.splice(0, trips.length);
     } else if (fn === "create_trip") {
@@ -361,6 +364,7 @@ async function installFixture(
         title: args.p_title,
         start_date: args.p_start,
         end_date: args.p_end,
+        timezone: args.p_timezone,
         status: "active",
       };
       trips.push(created);
@@ -468,7 +472,7 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
   await stopEditor.getByLabel("Address").fill("Kamphaeng Phet 2 Road");
   await stopEditor.getByLabel("Notes").fill("Arrive before noon");
   await page.getByLabel("Day").fill("2026-11-02");
-  await page.getByLabel("Local time (optional)").fill("09:00");
+  await page.getByLabel("Destination time (optional)").fill("09:00");
   await page.getByLabel("Transport").selectOption("train");
   await page.getByRole("button", { name: "Save stop" }).click();
   await expect(
@@ -659,7 +663,7 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await plan
     .getByRole("textbox", { name: "Activity" })
     .fill("Doi Suthep visit");
-  await plan.getByLabel("Local time").fill("09:30");
+  await plan.getByLabel("Destination time").fill("09:30");
   await plan.getByLabel("Address").last().fill("Mueang Chiang Mai");
   await plan.getByLabel("Travel mode into activity").selectOption("taxi");
   await plan.getByRole("button", { name: "Save activity" }).click();
@@ -684,6 +688,24 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await expect(
     plan.getByText("Doi Suthep visit", { exact: true }),
   ).toBeVisible();
+  const createdActivity = plan
+    .locator(".plan-activity")
+    .filter({ hasText: "Doi Suthep visit" });
+  await expect(createdActivity).toContainText(/9:30/);
+  await expect(
+    createdActivity.getByRole("button", { name: "Edit activity" }),
+  ).toBeVisible();
+  await expect(
+    createdActivity.getByRole("button", { name: "Remove" }),
+  ).toBeVisible();
+  await createdActivity.getByRole("button", { name: "Edit activity" }).click();
+  const createdActivityEditor = plan.locator(".plan-activity-editor");
+  await expect(createdActivityEditor.getByLabel("Day")).toHaveValue(
+    "2026-11-02",
+  );
+  await expect(createdActivityEditor.getByLabel("Destination time")).toHaveValue(
+    "09:30",
+  );
 });
 
 test.describe("Plan editor regressions", () => {
@@ -810,10 +832,10 @@ test.describe("Plan editor regressions", () => {
 test.describe("Browser timezone differs from trip timezone", () => {
   test.use({ timezoneId: "America/Los_Angeles" });
 
-  test("Today stop and Plan activity edits use the device local date and time", async ({
+  test("Today stop and Plan activity edits use destination date and time", async ({
     page,
   }) => {
-    await page.clock.setFixedTime(new Date("2026-11-02T17:00:00.000Z"));
+    await page.clock.setFixedTime(new Date("2026-11-02T03:00:00.000Z"));
     const fixtureState = await installFixture(page);
     await page.goto("/");
     await openTrip(page);
@@ -823,7 +845,7 @@ test.describe("Browser timezone differs from trip timezone", () => {
     await expectInViewport(stopEditor.getByLabel("Place or activity"));
     await stopEditor.getByLabel("Place or activity").fill("LA breakfast");
     await stopEditor.getByLabel("Day").fill("2026-11-02");
-    await stopEditor.getByLabel("Local time (optional)").fill("09:30");
+    await stopEditor.getByLabel("Destination time (optional)").fill("09:30");
     await stopEditor.getByRole("button", { name: "Save stop" }).click();
     await expect
       .poll(
@@ -837,7 +859,7 @@ test.describe("Browser timezone differs from trip timezone", () => {
         p_title: "LA breakfast",
         p_item_id: null,
         p_plan_date: "2026-11-02",
-        p_starts_at: "2026-11-02T17:30:00.000Z",
+        p_starts_at: "2026-11-02T02:30:00.000Z",
       });
 
     const stop = page
@@ -847,10 +869,10 @@ test.describe("Browser timezone differs from trip timezone", () => {
     await stop.getByRole("button", { name: "Edit stop" }).click();
     await expectInViewport(stopEditor.getByLabel("Place or activity"));
     await expect(stopEditor.getByLabel("Day")).toHaveValue("2026-11-02");
-    await expect(stopEditor.getByLabel("Local time (optional)")).toHaveValue(
+    await expect(stopEditor.getByLabel("Destination time (optional)")).toHaveValue(
       "09:30",
     );
-    await stopEditor.getByLabel("Local time (optional)").fill("10:00");
+    await stopEditor.getByLabel("Destination time (optional)").fill("10:00");
     await stopEditor.getByRole("button", { name: "Save stop" }).click();
     await expect
       .poll(
@@ -864,7 +886,7 @@ test.describe("Browser timezone differs from trip timezone", () => {
         p_item_id: "stop-added",
         p_expected_version: 1,
         p_plan_date: "2026-11-02",
-        p_starts_at: "2026-11-02T18:00:00.000Z",
+        p_starts_at: "2026-11-02T03:00:00.000Z",
       });
 
     await page
@@ -878,8 +900,8 @@ test.describe("Browser timezone differs from trip timezone", () => {
     await legacyActivity.getByRole("button", { name: "Edit activity" }).click();
     const legacyEditor = plan.locator(".plan-activity-editor");
     await expectInViewport(legacyEditor.getByLabel("Day"));
-    await expect(legacyEditor.getByLabel("Day")).toHaveValue("2026-11-01");
-    await expect(legacyEditor.getByLabel("Local time")).toHaveValue("18:00");
+    await expect(legacyEditor.getByLabel("Day")).toHaveValue("2026-11-02");
+    await expect(legacyEditor.getByLabel("Destination time")).toHaveValue("09:00");
     await legacyEditor.getByRole("button", { name: "Save activity" }).click();
     await expect
       .poll(
@@ -892,19 +914,20 @@ test.describe("Browser timezone differs from trip timezone", () => {
       .toMatchObject({
         p_item_id: "stop-1",
         p_expected_version: 1,
-        p_plan_date: "2026-11-01",
+        p_plan_date: "2026-11-02",
         p_starts_at: "2026-11-02T02:00:00.000Z",
       });
 
     const activity = plan
       .locator(".plan-activity")
       .filter({ hasText: "LA breakfast" });
+    await expect(activity).toContainText(/10:00/);
     await activity.getByRole("button", { name: "Edit activity" }).click();
     const editor = plan.locator(".plan-activity-editor");
     await expectInViewport(editor.getByLabel("Day"));
     await expect(editor.getByLabel("Day")).toHaveValue("2026-11-02");
-    await expect(editor.getByLabel("Local time")).toHaveValue("10:00");
-    await editor.getByLabel("Local time").fill("10:15");
+    await expect(editor.getByLabel("Destination time")).toHaveValue("10:00");
+    await editor.getByLabel("Destination time").fill("10:15");
     await editor.getByRole("button", { name: "Save activity" }).click();
     await expect
       .poll(
@@ -918,7 +941,7 @@ test.describe("Browser timezone differs from trip timezone", () => {
         p_item_id: "stop-added",
         p_expected_version: 2,
         p_plan_date: "2026-11-02",
-        p_starts_at: "2026-11-02T18:15:00.000Z",
+        p_starts_at: "2026-11-02T03:15:00.000Z",
       });
   });
 });
@@ -933,6 +956,7 @@ test("trip creation carries its date range; archive and restore work; wrong dele
   await page.getByLabel("Your name").fill("Mali");
   await page.getByLabel("Start date").fill("2027-03-20");
   await page.getByLabel("End date").fill("2027-03-24");
+  await page.getByLabel("Destination timezone (IANA)").fill("Asia/Tokyo");
   await page.getByRole("button", { name: "Create trip" }).click();
   await expect
     .poll(
@@ -944,6 +968,7 @@ test("trip creation carries its date range; archive and restore work; wrong dele
       p_title: "Kyoto Spring",
       p_start: "2027-03-20",
       p_end: "2027-03-24",
+      p_timezone: "Asia/Tokyo",
       p_currency: "THB",
     });
 
@@ -955,6 +980,25 @@ test("trip creation carries its date range; archive and restore work; wrong dele
   await expect(
     page.getByText("Trip settings and access", { exact: true }),
   ).toBeVisible();
+  await page.getByText("Trip settings and access", { exact: true }).click();
+  await page.getByLabel("Destination timezone (IANA)").fill("Asia/Tokyo");
+  await page.getByRole("button", { name: "Save timezone" }).click();
+  await expect
+    .poll(() => fixtureState.getRpcCalls().find((call) => call.fn === "set_trip_timezone")?.args)
+    .toMatchObject({ p_trip_id: tripId, p_timezone: "Asia/Tokyo" });
+  await page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Plan" })
+    .click();
+  const plan = page.getByRole("region", { name: "Trip plan" });
+  const watArun = plan.locator(".plan-activity").filter({ hasText: "Wat Arun" });
+  await expect(watArun).toContainText(/11:00/);
+  await watArun.getByRole("button", { name: "Edit activity" }).click();
+  await expect(plan.locator(".plan-activity-editor").getByLabel("Destination time")).toHaveValue("11:00");
+  await page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Trip" })
+    .click();
   await page.getByText("Trip settings and access", { exact: true }).click();
   await page.getByRole("button", { name: "Archive trip" }).click();
   await expect

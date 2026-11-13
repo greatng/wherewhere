@@ -5,6 +5,7 @@ import { cacheTripData, readCachedTripData } from "../offline/db";
 import { expandDateRange, formatDateLabel } from "./dates";
 import { tripWallTimeToIso } from "./timezone";
 import { revealEditor } from "../../shared/editor-navigation";
+import { ActionIcon } from "../../shared/ActionIcon";
 
 export type TripLike = {
   id: string;
@@ -102,7 +103,7 @@ export function Plan({
 }) {
   const t = (en: string, th: string) => (thai ? th : en);
   const locale = thai ? "th-TH" : "en";
-  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const destinationTimezone = trip.timezone;
   const qc = useQueryClient();
   const [notice, setNotice] = useState("");
   const [replaceRange, setReplaceRange] = useState(false);
@@ -360,7 +361,7 @@ export function Plan({
         p_trip_id: trip.id,
         p_title: f.get("title"),
         p_starts_at: raw
-          ? tripWallTimeToIso(`${activityDate}T${raw}`, localTimezone)
+          ? tripWallTimeToIso(`${activityDate}T${raw}`, destinationTimezone)
           : null,
         p_address: f.get("address") || null,
         p_meeting_info: f.get("meeting") || null,
@@ -369,7 +370,7 @@ export function Plan({
         p_position:
           activityForm?.position ??
           activities.data?.filter(
-            (a) => activityLocalDate(a, localTimezone) === activityDate,
+            (a) => activityDestinationDate(a, destinationTimezone) === activityDate,
           ).length ??
           0,
         p_item_id: activityForm?.id ?? null,
@@ -439,10 +440,10 @@ export function Plan({
       <h2>{t("Plan", "แผนการเดินทาง")}</h2>
       <p>
         {t(
-          "Dates are shown in this device's local timezone",
-          "วันที่อ้างอิงเขตเวลาท้องถิ่นของอุปกรณ์นี้",
+          "Dates are shown in the destination timezone",
+          "วันที่อ้างอิงเขตเวลาปลายทาง",
         )}
-        : {localTimezone}
+        : {destinationTimezone}
       </p>
       {notice && <p role="status">{notice}</p>}
       {(nights.isError || stays.isError || activities.isError) && (
@@ -453,7 +454,7 @@ export function Plan({
           )}
         </p>
       )}
-      <section class="plan-nights">
+      <div class="plan-nights">
         <h3>
           {t("Where are we staying each night?", "แต่ละคืนพักที่เมืองไหน")}
         </h3>
@@ -474,6 +475,9 @@ export function Plan({
                     <>
                       <button
                         type="button"
+                        class="plan-icon-button"
+                        aria-label={t("Edit this night", "แก้ไขคืนนี้")}
+                        title={t("Edit this night", "แก้ไขคืนนี้")}
                         onClick={() => {
                           setNightForm(night);
                           setReplaceRange(false);
@@ -481,13 +485,16 @@ export function Plan({
                           requestEditorNavigation("night");
                         }}
                       >
-                        {t("Edit this night", "แก้ไขคืนนี้")}
+                        <ActionIcon kind="edit" />
                       </button>
                       <button
                         type="button"
+                        class="plan-icon-button danger"
+                        aria-label={t("Remove", "ลบ")}
+                        title={t("Remove", "ลบ")}
                         onClick={() => void deleteNight(night)}
                       >
-                        {t("Remove", "ลบ")}
+                        <ActionIcon kind="remove" />
                       </button>
                     </>
                   )}
@@ -496,17 +503,17 @@ export function Plan({
                 <p>{t("Destination not set", "ยังไม่ได้กำหนดเมือง")}</p>
               )}
               {activitiesByDate
-                .filter((a) => activityLocalDate(a, localTimezone) === date)
+                .filter((a) => activityDestinationDate(a, destinationTimezone) === date)
                 .map((activity) => (
-                  <article class="plan-activity" key={activity.id}>
+                  <div class="plan-activity" key={activity.id}>
                     <strong>{activity.title}</strong>
                     {activity.starts_at && (
                       <p>
                         {new Date(activity.starts_at).toLocaleTimeString(locale, {
-                          timeZone: localTimezone,
+                          timeZone: destinationTimezone,
                           timeStyle: "short",
                         })}{" "}
-                        · {localTimezone}
+                        · {destinationTimezone}
                       </p>
                     )}
                     {activity.address && <p>{activity.address}</p>}
@@ -520,28 +527,35 @@ export function Plan({
                       <>
                         <button
                           type="button"
+                          class="plan-icon-button"
+                          aria-label={t("Edit activity", "แก้ไขกิจกรรม")}
+                          title={t("Edit activity", "แก้ไขกิจกรรม")}
                           onClick={() => {
                             setActivityForm(activity);
-                            setActivityDate(activityLocalDate(activity, localTimezone) ?? date);
+                            setActivityDate(activityDestinationDate(activity, destinationTimezone) ?? date);
                             setShowActivityEditor(true);
                             requestEditorNavigation("activity");
                           }}
                         >
-                          {t("Edit activity", "แก้ไขกิจกรรม")}
+                          <ActionIcon kind="edit" />
                         </button>
                         <button
                           type="button"
+                          class="plan-icon-button danger"
+                          aria-label={t("Remove", "ลบ")}
+                          title={t("Remove", "ลบ")}
                           onClick={() => void deleteActivity(activity)}
                         >
-                          {t("Remove", "ลบ")}
+                          <ActionIcon kind="remove" />
                         </button>
                       </>
                     )}
-                  </article>
+                  </div>
                 ))}
               {organizer && (
                 <button
                   type="button"
+                  class="plan-add-button"
                   onClick={() => {
                     setActivityForm(null);
                     setActivityDate(date);
@@ -549,6 +563,7 @@ export function Plan({
                     requestEditorNavigation("activity");
                   }}
                 >
+                  <ActionIcon kind="add" />
                   {t("Add activity", "เพิ่มกิจกรรม")}
                 </button>
               )}
@@ -559,6 +574,7 @@ export function Plan({
           <>
             <button
               type="button"
+              class="plan-add-button"
               aria-expanded={showNightEditor}
               onClick={() => {
                 setNightForm(null);
@@ -566,6 +582,7 @@ export function Plan({
                 requestEditorNavigation("night");
               }}
             >
+              <ActionIcon kind="add" />
               {t(
                 "Add city for a night or range",
                 "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
@@ -655,8 +672,8 @@ export function Plan({
             )}
           </>
         )}
-      </section>
-      <section class="plan-stays">
+      </div>
+      <div class="plan-stays">
         <h3>{t("Accommodation", "ที่พัก")}</h3>
         {(stays.data ?? []).map((stay) => (
           <article class="plan-stay" key={stay.id}>
@@ -671,16 +688,25 @@ export function Plan({
               <>
                 <button
                   type="button"
+                  class="plan-icon-button"
+                  aria-label={t("Edit", "แก้ไข")}
+                  title={t("Edit", "แก้ไข")}
                   onClick={() => {
                     setStayForm(stay);
                     setShowStayEditor(true);
                     requestEditorNavigation("stay");
                   }}
                 >
-                  {t("Edit", "แก้ไข")}
+                  <ActionIcon kind="edit" />
                 </button>
-                <button type="button" onClick={() => void deleteStay(stay)}>
-                  {t("Remove", "ลบ")}
+                <button
+                  type="button"
+                  class="plan-icon-button danger"
+                  aria-label={t("Remove", "ลบ")}
+                  title={t("Remove", "ลบ")}
+                  onClick={() => void deleteStay(stay)}
+                >
+                  <ActionIcon kind="remove" />
                 </button>
               </>
             )}
@@ -690,6 +716,7 @@ export function Plan({
           <>
             <button
               type="button"
+              class="plan-add-button"
               aria-expanded={showStayEditor}
               onClick={() => {
                 setStayForm(null);
@@ -697,6 +724,7 @@ export function Plan({
                 requestEditorNavigation("stay");
               }}
             >
+              <ActionIcon kind="add" />
               {t("Add accommodation", "เพิ่มที่พัก")}
             </button>
             {showStayEditor && (
@@ -777,7 +805,7 @@ export function Plan({
             )}
           </>
         )}
-      </section>
+      </div>
       {organizer && showActivityEditor && (
         <section class="plan-activity-editor">
           <h3>
@@ -812,13 +840,13 @@ export function Plan({
               />
             </label>
             <label>
-              {t("Local time", "เวลาท้องถิ่น")}
+              {t("Destination time", "เวลาปลายทาง")}
               <input
                 name="starts"
                 type="time"
                 defaultValue={
                   activityForm?.starts_at
-                    ? toTripLocal(activityForm.starts_at, localTimezone).slice(
+                    ? toTripLocal(activityForm.starts_at, destinationTimezone).slice(
                         11,
                       )
                     : ""
@@ -827,9 +855,9 @@ export function Plan({
             </label>
             <p>
               {t(
-                "Times use this device's local timezone",
-                "เวลาอ้างอิงเขตเวลาท้องถิ่นของอุปกรณ์นี้",
-              )}: {localTimezone}
+                "Times use the destination timezone",
+                "เวลาอ้างอิงเขตเวลาปลายทาง",
+              )}: {destinationTimezone}
             </p>
             <label>
               {t("Address", "ที่อยู่")}
@@ -923,7 +951,7 @@ function toTripLocal(value: string, timezone: string) {
   const p = Object.fromEntries(parts.map((x) => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
-function activityLocalDate(activity: Activity, timezone: string) {
+function activityDestinationDate(activity: Activity, timezone: string) {
   return activity.starts_at
     ? toTripLocal(activity.starts_at, timezone).slice(0, 10)
     : activity.plan_date;

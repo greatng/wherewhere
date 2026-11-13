@@ -621,7 +621,7 @@ details > summary {
   }
 }
 
-/* Plan presentation overrides: keep itinerary rows flat and editors distinct. */
+/* Plan presentation: one flat itinerary with compact, accessible actions. */
 .plan {
   padding: 0;
   border: 0;
@@ -634,6 +634,7 @@ details > summary {
 .plan > .plan-activity-editor {
   width: 100%;
   padding: 0;
+  margin: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -653,12 +654,66 @@ details > summary {
 .plan-night {
   border-top: 1px solid var(--line);
 }
+.plan-night h4 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.plan-night p {
+  margin: 0.2rem 0 0.4rem;
+}
 .plan-stay {
   border-bottom: 1px solid var(--line);
 }
 .plan-activity {
-  border-left: 3px solid #d9b19e;
-  padding-left: 0.65rem;
+  border-top: 1px solid var(--line);
+}
+.activity.activity-plan {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.activity.activity-plan > .activity-heading {
+  padding: 0.4rem 0;
+}
+.plan-icon-button,
+button.plan-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: 0.1rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+}
+.plan-icon-button svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.plan-icon-button:hover:not(:disabled) {
+  background: #eeeae1;
+  color: var(--ink);
+  transform: none;
+}
+.plan-icon-button.danger {
+  color: var(--terra);
+}
+.plan-icon-button.danger:hover:not(:disabled) {
+  background: #f5e8e2;
+  color: #963d2b;
 }
 .plan-form {
   display: block;
@@ -671,16 +726,47 @@ details > summary {
   background: #f8f5ed;
 }
 @media (max-width: 560px) {
+  .activity.activity-plan > .activity-heading {
+    padding: 0.2rem 0;
+  }
+  .activity.activity-plan .plan h3,
+  .activity.activity-plan h3 {
+    margin-top: 0.55rem;
+    margin-bottom: 0.35rem;
+  }
   .plan-night,
   .plan-stay,
   .plan-activity {
     padding-top: 0.6rem;
     padding-bottom: 0.6rem;
   }
-  .plan-activity {
-    padding-left: 0.55rem;
+  .plan > h2 {
+    margin-bottom: 0.25rem;
+  }
+  .plan > p:first-of-type {
+    font-size: 0.92rem;
+    margin-bottom: 0.45rem;
   }
   .plan-form {
     padding: 0.65rem;
   }
+}
+
+/* Inline icons stay compact in primary actions as well as icon-only controls. */
+.action-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.plan button:has(> .action-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+.activity-tabs button {
+  white-space: nowrap;
+  overflow-wrap: normal;
 }

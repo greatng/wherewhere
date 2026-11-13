@@ -427,8 +427,7 @@ export function App() {
                   const createdTrip = await rpc("create_trip", {
                     p_title: f.get("title"),
                     p_name: f.get("name"),
-                    p_timezone:
-                      Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    p_timezone: f.get("timezone"),
                     p_currency: f.get("currency"),
                     p_start: f.get("start"),
                     p_end: f.get("end"),
@@ -443,6 +442,7 @@ export function App() {
                 ["name", t("Your name", "ชื่อของคุณ"), "text"],
                 ["start", t("Start date", "วันเริ่ม"), "date"],
                 ["end", t("End date", "วันสิ้นสุด"), "date"],
+                ["timezone", t("Destination timezone (IANA)", "เขตเวลาปลายทาง (IANA)"), "text"],
                 [
                   "currency",
                   t("Currency (e.g. THB)", "สกุลเงิน เช่น THB"),
@@ -456,7 +456,8 @@ export function App() {
                     type={type === "date" ? "date" : "text"}
                     required
                     maxLength={name === "currency" ? 3 : 80}
-                    defaultValue={name === "currency" ? "THB" : undefined}
+                    defaultValue={name === "currency" ? "THB" : name === "timezone" ? "Asia/Bangkok" : undefined}
+                    placeholder={name === "timezone" ? "Asia/Tokyo" : undefined}
                   />
                 </label>
               ))}
@@ -535,7 +536,7 @@ export function App() {
                 <h2>{trip.title}</h2>
                 <p>
                   {trip.start_date} — {trip.end_date} · {trip.base_currency} ·{" "}
-                  {trip.status}
+                  {trip.status} · {trip.timezone}
                 </p>
                 {uid && members.data && (
                   <TripActivity
@@ -580,6 +581,26 @@ export function App() {
                                   "ตั้งค่าทริปและการเข้าถึง",
                                 )}
                               </summary>
+                              <form
+                                key={trip.timezone}
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const f = new FormData(e.currentTarget);
+                                  void run(async () => {
+                                    await rpc("set_trip_timezone", {
+                                      p_trip_id: trip.id,
+                                      p_timezone: f.get("timezone"),
+                                    });
+                                  });
+                                }}
+                              >
+                                <p>{t("Changing the destination timezone leaves saved timestamps unchanged. They will display in the new destination timezone, and activity days are grouped by that local date.", "การเปลี่ยนเขตเวลาปลายทางจะไม่เปลี่ยนเวลาที่บันทึกไว้ แต่จะแสดงตามเขตเวลาใหม่ และจัดกลุ่มกิจกรรมตามวันที่ท้องถิ่น")}</p>
+                                <label>
+                                  {t("Destination timezone (IANA)", "เขตเวลาปลายทาง (IANA)")}
+                                  <input name="timezone" required maxLength={80} defaultValue={trip.timezone} placeholder="Asia/Tokyo" />
+                                </label>
+                                <button disabled={busy || trip.status !== "active"}>{t("Save timezone", "บันทึกเขตเวลา")}</button>
+                              </form>
                               <button
                                 disabled={busy || trip.status !== "active"}
                                 onClick={() =>

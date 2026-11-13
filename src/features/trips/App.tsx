@@ -442,7 +442,11 @@ export function App() {
                 ["name", t("Your name", "ชื่อของคุณ"), "text"],
                 ["start", t("Start date", "วันเริ่ม"), "date"],
                 ["end", t("End date", "วันสิ้นสุด"), "date"],
-                ["timezone", t("Destination timezone (IANA)", "เขตเวลาปลายทาง (IANA)"), "text"],
+                [
+                  "timezone",
+                  t("Destination timezone (IANA)", "เขตเวลาปลายทาง (IANA)"),
+                  "text",
+                ],
                 [
                   "currency",
                   t("Currency (e.g. THB)", "สกุลเงิน เช่น THB"),
@@ -456,7 +460,13 @@ export function App() {
                     type={type === "date" ? "date" : "text"}
                     required
                     maxLength={name === "currency" ? 3 : 80}
-                    defaultValue={name === "currency" ? "THB" : name === "timezone" ? "Asia/Bangkok" : undefined}
+                    defaultValue={
+                      name === "currency"
+                        ? "THB"
+                        : name === "timezone"
+                          ? "Asia/Bangkok"
+                          : undefined
+                    }
                     placeholder={name === "timezone" ? "Asia/Tokyo" : undefined}
                   />
                 </label>
@@ -536,7 +546,7 @@ export function App() {
                 <h2>{trip.title}</h2>
                 <p>
                   {trip.start_date} — {trip.end_date} · {trip.base_currency} ·{" "}
-                  {trip.status} · {trip.timezone}
+                  {trip.status}
                 </p>
                 {uid && members.data && (
                   <TripActivity
@@ -594,12 +604,30 @@ export function App() {
                                   });
                                 }}
                               >
-                                <p>{t("Changing the destination timezone leaves saved timestamps unchanged. They will display in the new destination timezone, and activity days are grouped by that local date.", "การเปลี่ยนเขตเวลาปลายทางจะไม่เปลี่ยนเวลาที่บันทึกไว้ แต่จะแสดงตามเขตเวลาใหม่ และจัดกลุ่มกิจกรรมตามวันที่ท้องถิ่น")}</p>
+                                <p>
+                                  {t(
+                                    "Changing the destination timezone leaves saved timestamps unchanged. They will display in the new destination timezone, and activity days are grouped by that local date.",
+                                    "การเปลี่ยนเขตเวลาปลายทางจะไม่เปลี่ยนเวลาที่บันทึกไว้ แต่จะแสดงตามเขตเวลาใหม่ และจัดกลุ่มกิจกรรมตามวันที่ท้องถิ่น",
+                                  )}
+                                </p>
                                 <label>
-                                  {t("Destination timezone (IANA)", "เขตเวลาปลายทาง (IANA)")}
-                                  <input name="timezone" required maxLength={80} defaultValue={trip.timezone} placeholder="Asia/Tokyo" />
+                                  {t(
+                                    "Destination timezone (IANA)",
+                                    "เขตเวลาปลายทาง (IANA)",
+                                  )}
+                                  <input
+                                    name="timezone"
+                                    required
+                                    maxLength={80}
+                                    defaultValue={trip.timezone}
+                                    placeholder="Asia/Tokyo"
+                                  />
                                 </label>
-                                <button disabled={busy || trip.status !== "active"}>{t("Save timezone", "บันทึกเขตเวลา")}</button>
+                                <button
+                                  disabled={busy || trip.status !== "active"}
+                                >
+                                  {t("Save timezone", "บันทึกเขตเวลา")}
+                                </button>
                               </form>
                               <button
                                 disabled={busy || trip.status !== "active"}

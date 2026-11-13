@@ -118,3 +118,10 @@ Correction to US10: local means destination local time. Activities entered as09:
 
 
 US14–US15 verification: 48 unit/component/database tests pass, including destination-time activity editing and organizer-only timezone correction with timestamp preservation. UI uses the trip destination timezone, superseding the device-local interpretation recorded in US10. One timezone is configured per trip; activities do not prompt for individual timezone selections.
+
+
+## US16 — quiet times and SVG-only Plan actions
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/16
+
+Remove repeated timezone names from the daily workspace and activity rows. Keep destination conversion internally and its organizer setting. All Plan actions use compact SVG icons with bilingual accessible names, titles, visible keyboard focus and touch targets; navigation tab labels remain readable text.

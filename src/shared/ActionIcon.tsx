@@ -4,7 +4,7 @@ export function ActionIcon({
   kind,
   class: className,
 }: {
-  kind: "add" | "edit" | "remove";
+  kind: "add" | "edit" | "remove" | "save" | "cancel";
   class?: string;
 }) {
   const common: JSX.SVGAttributes<SVGSVGElement> = {
@@ -31,6 +31,22 @@ export function ActionIcon({
     return (
       <svg {...common}>
         <path d="m15 5 4 4M4 20l4.2-.8L19 8.4 15.6 5 4.8 15.8 4 20Z" />
+      </svg>
+    );
+  }
+
+  if (kind === "save") {
+    return (
+      <svg {...common}>
+        <path d="m5 12 4 4L19 6" />
+      </svg>
+    );
+  }
+
+  if (kind === "cancel") {
+    return (
+      <svg {...common}>
+        <path d="m6 6 12 12M18 6 6 18" />
       </svg>
     );
   }

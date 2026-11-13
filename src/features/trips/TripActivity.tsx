@@ -1,3 +1,4 @@
+import { ActionIcon } from "../../shared/ActionIcon";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import { useQuery } from "@tanstack/preact-query";
@@ -898,7 +899,15 @@ export function TripActivity({
   const current = today.current;
   const heroStop = chosenStopId ? (current ?? upcoming) : upcoming;
   return (
-    <section class={senior ? "activity senior" : tab === "plan" ? "activity activity-plan" : "activity"}>
+    <section
+      class={
+        senior
+          ? "activity senior"
+          : tab === "plan"
+            ? "activity activity-plan"
+            : "activity"
+      }
+    >
       <div class="activity-heading">
         <div>
           <h2>{tr("Trip details", "รายละเอียดทริป")}</h2>
@@ -1127,7 +1136,6 @@ export function TripActivity({
                         },
                       )
                     : tr("Time to be confirmed", "รอยืนยันเวลา")}{" "}
-                  · {destinationTimezone}
                 </p>
                 {heroStop.address && <p>{heroStop.address}</p>}
                 {heroStop.meeting_info && <p>{heroStop.meeting_info}</p>}
@@ -1218,7 +1226,6 @@ export function TripActivity({
                           timeZone: destinationTimezone,
                         },
                       )}{" "}
-                      · {destinationTimezone}
                     </p>
                   )}
                   {item.address && <p>{item.address}</p>}
@@ -1232,6 +1239,9 @@ export function TripActivity({
                     <>
                       <button
                         type="button"
+                        class="plan-icon-button"
+                        aria-label={tr("Edit stop", "แก้ไขจุดหมาย")}
+                        title={tr("Edit stop", "แก้ไขจุดหมาย")}
                         onClick={() => {
                           setEditing(item);
                           setStopEditorOpen(true);
@@ -1245,13 +1255,16 @@ export function TripActivity({
                           });
                         }}
                       >
-                        {tr("Edit stop", "แก้ไขจุดหมาย")}
+                        <ActionIcon kind="edit" />
                       </button>
                       <button
                         type="button"
+                        class="plan-icon-button danger"
+                        aria-label={tr("Delete stop", "ลบจุดหมาย")}
+                        title={tr("Delete stop", "ลบจุดหมาย")}
                         onClick={() => void deleteItem(item)}
                       >
-                        {tr("Delete stop", "ลบจุดหมาย")}
+                        <ActionIcon kind="remove" />
                       </button>
                     </>
                   )}
@@ -1310,7 +1323,10 @@ export function TripActivity({
                       />
                     </label>
                     <label>
-                      {tr("Destination time (optional)", "เวลาปลายทาง (ไม่บังคับ)")}
+                      {tr(
+                        "Destination time (optional)",
+                        "เวลาปลายทาง (ไม่บังคับ)",
+                      )}
                       <input
                         name="time"
                         type="time"
@@ -1324,7 +1340,7 @@ export function TripActivity({
                         }
                       />
                     </label>
-                    <p>{destinationTimezone}</p>
+
                     <label>
                       {tr("Address", "ที่อยู่")}
                       <input
@@ -1850,9 +1866,7 @@ export function TripActivity({
           <p>
             {trip.start_date} — {trip.end_date}
           </p>
-          <p>
-            {tr("Destination timezone", "เขตเวลาปลายทาง")}: {destinationTimezone}
-          </p>
+
           <p>
             {tr("Trip status", "สถานะทริป")}: {trip.status}
           </p>

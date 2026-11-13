@@ -370,7 +370,8 @@ export function Plan({
         p_position:
           activityForm?.position ??
           activities.data?.filter(
-            (a) => activityDestinationDate(a, destinationTimezone) === activityDate,
+            (a) =>
+              activityDestinationDate(a, destinationTimezone) === activityDate,
           ).length ??
           0,
         p_item_id: activityForm?.id ?? null,
@@ -438,13 +439,6 @@ export function Plan({
   return (
     <section class="plan" aria-label={t("Trip plan", "แผนการเดินทาง")}>
       <h2>{t("Plan", "แผนการเดินทาง")}</h2>
-      <p>
-        {t(
-          "Dates are shown in the destination timezone",
-          "วันที่อ้างอิงเขตเวลาปลายทาง",
-        )}
-        : {destinationTimezone}
-      </p>
       {notice && <p role="status">{notice}</p>}
       {(nights.isError || stays.isError || activities.isError) && (
         <p role="status">
@@ -475,7 +469,7 @@ export function Plan({
                     <>
                       <button
                         type="button"
-                        class="plan-icon-button"
+                        class="plan-icon-button icon44"
                         aria-label={t("Edit this night", "แก้ไขคืนนี้")}
                         title={t("Edit this night", "แก้ไขคืนนี้")}
                         onClick={() => {
@@ -489,7 +483,7 @@ export function Plan({
                       </button>
                       <button
                         type="button"
-                        class="plan-icon-button danger"
+                        class="plan-icon-button icon44 danger"
                         aria-label={t("Remove", "ลบ")}
                         title={t("Remove", "ลบ")}
                         onClick={() => void deleteNight(night)}
@@ -503,17 +497,22 @@ export function Plan({
                 <p>{t("Destination not set", "ยังไม่ได้กำหนดเมือง")}</p>
               )}
               {activitiesByDate
-                .filter((a) => activityDestinationDate(a, destinationTimezone) === date)
+                .filter(
+                  (a) =>
+                    activityDestinationDate(a, destinationTimezone) === date,
+                )
                 .map((activity) => (
                   <div class="plan-activity" key={activity.id}>
                     <strong>{activity.title}</strong>
                     {activity.starts_at && (
                       <p>
-                        {new Date(activity.starts_at).toLocaleTimeString(locale, {
-                          timeZone: destinationTimezone,
-                          timeStyle: "short",
-                        })}{" "}
-                        · {destinationTimezone}
+                        {new Date(activity.starts_at).toLocaleTimeString(
+                          locale,
+                          {
+                            timeZone: destinationTimezone,
+                            timeStyle: "short",
+                          },
+                        )}
                       </p>
                     )}
                     {activity.address && <p>{activity.address}</p>}
@@ -527,12 +526,17 @@ export function Plan({
                       <>
                         <button
                           type="button"
-                          class="plan-icon-button"
+                          class="plan-icon-button icon44"
                           aria-label={t("Edit activity", "แก้ไขกิจกรรม")}
                           title={t("Edit activity", "แก้ไขกิจกรรม")}
                           onClick={() => {
                             setActivityForm(activity);
-                            setActivityDate(activityDestinationDate(activity, destinationTimezone) ?? date);
+                            setActivityDate(
+                              activityDestinationDate(
+                                activity,
+                                destinationTimezone,
+                              ) ?? date,
+                            );
                             setShowActivityEditor(true);
                             requestEditorNavigation("activity");
                           }}
@@ -541,7 +545,7 @@ export function Plan({
                         </button>
                         <button
                           type="button"
-                          class="plan-icon-button danger"
+                          class="plan-icon-button icon44 danger"
                           aria-label={t("Remove", "ลบ")}
                           title={t("Remove", "ลบ")}
                           onClick={() => void deleteActivity(activity)}
@@ -555,7 +559,9 @@ export function Plan({
               {organizer && (
                 <button
                   type="button"
-                  class="plan-add-button"
+                  class="plan-icon-button icon44"
+                  aria-label={t("Add activity", "เพิ่มกิจกรรม")}
+                  title={t("Add activity", "เพิ่มกิจกรรม")}
                   onClick={() => {
                     setActivityForm(null);
                     setActivityDate(date);
@@ -564,7 +570,6 @@ export function Plan({
                   }}
                 >
                   <ActionIcon kind="add" />
-                  {t("Add activity", "เพิ่มกิจกรรม")}
                 </button>
               )}
             </article>
@@ -574,7 +579,15 @@ export function Plan({
           <>
             <button
               type="button"
-              class="plan-add-button"
+              class="plan-icon-button icon44"
+              aria-label={t(
+                "Add city for a night or range",
+                "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
+              )}
+              title={t(
+                "Add city for a night or range",
+                "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
+              )}
               aria-expanded={showNightEditor}
               onClick={() => {
                 setNightForm(null);
@@ -583,10 +596,6 @@ export function Plan({
               }}
             >
               <ActionIcon kind="add" />
-              {t(
-                "Add city for a night or range",
-                "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
-              )}
             </button>
             {showNightEditor && (
               <form
@@ -654,19 +663,33 @@ export function Plan({
                     "ฉันเข้าใจว่าการดำเนินการนี้จะเขียนทับเมืองในคืนที่เลือก",
                   )}
                 </label>
-                <button>
-                  {nightForm
-                    ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
-                    : t("Save destination", "บันทึกเมือง")}
+                <button
+                  type="submit"
+                  class="plan-icon-button icon44"
+                  aria-label={
+                    nightForm
+                      ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
+                      : t("Save destination", "บันทึกเมือง")
+                  }
+                  title={
+                    nightForm
+                      ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
+                      : t("Save destination", "บันทึกเมือง")
+                  }
+                >
+                  <ActionIcon kind="save" />
                 </button>
                 <button
                   type="button"
+                  class="plan-icon-button icon44"
+                  aria-label={t("Cancel", "ยกเลิก")}
+                  title={t("Cancel", "ยกเลิก")}
                   onClick={() => {
                     setNightForm(null);
                     setShowNightEditor(false);
                   }}
                 >
-                  {t("Cancel", "ยกเลิก")}
+                  <ActionIcon kind="cancel" />
                 </button>
               </form>
             )}
@@ -688,7 +711,7 @@ export function Plan({
               <>
                 <button
                   type="button"
-                  class="plan-icon-button"
+                  class="plan-icon-button icon44"
                   aria-label={t("Edit", "แก้ไข")}
                   title={t("Edit", "แก้ไข")}
                   onClick={() => {
@@ -701,7 +724,7 @@ export function Plan({
                 </button>
                 <button
                   type="button"
-                  class="plan-icon-button danger"
+                  class="plan-icon-button icon44 danger"
                   aria-label={t("Remove", "ลบ")}
                   title={t("Remove", "ลบ")}
                   onClick={() => void deleteStay(stay)}
@@ -716,7 +739,9 @@ export function Plan({
           <>
             <button
               type="button"
-              class="plan-add-button"
+              class="plan-icon-button icon44"
+              aria-label={t("Add accommodation", "เพิ่มที่พัก")}
+              title={t("Add accommodation", "เพิ่มที่พัก")}
               aria-expanded={showStayEditor}
               onClick={() => {
                 setStayForm(null);
@@ -725,7 +750,6 @@ export function Plan({
               }}
             >
               <ActionIcon kind="add" />
-              {t("Add accommodation", "เพิ่มที่พัก")}
             </button>
             {showStayEditor && (
               <form
@@ -791,15 +815,25 @@ export function Plan({
                     defaultValue={stayForm?.phone ?? ""}
                   />
                 </label>
-                <button>{t("Save accommodation", "บันทึกที่พัก")}</button>
+                <button
+                  type="submit"
+                  class="plan-icon-button icon44"
+                  aria-label={t("Save accommodation", "บันทึกที่พัก")}
+                  title={t("Save accommodation", "บันทึกที่พัก")}
+                >
+                  <ActionIcon kind="save" />
+                </button>
                 <button
                   type="button"
+                  class="plan-icon-button icon44"
+                  aria-label={t("Cancel", "ยกเลิก")}
+                  title={t("Cancel", "ยกเลิก")}
                   onClick={() => {
                     setStayForm(null);
                     setShowStayEditor(false);
                   }}
                 >
-                  {t("Cancel", "ยกเลิก")}
+                  <ActionIcon kind="cancel" />
                 </button>
               </form>
             )}
@@ -846,19 +880,14 @@ export function Plan({
                 type="time"
                 defaultValue={
                   activityForm?.starts_at
-                    ? toTripLocal(activityForm.starts_at, destinationTimezone).slice(
-                        11,
-                      )
+                    ? toTripLocal(
+                        activityForm.starts_at,
+                        destinationTimezone,
+                      ).slice(11)
                     : ""
                 }
               />
             </label>
-            <p>
-              {t(
-                "Times use the destination timezone",
-                "เวลาอ้างอิงเขตเวลาปลายทาง",
-              )}: {destinationTimezone}
-            </p>
             <label>
               {t("Address", "ที่อยู่")}
               <input
@@ -892,15 +921,25 @@ export function Plan({
                 t={t}
               />
             </label>
-            <button>{t("Save activity", "บันทึกกิจกรรม")}</button>
+            <button
+              type="submit"
+              class="plan-icon-button icon44"
+              aria-label={t("Save activity", "บันทึกกิจกรรม")}
+              title={t("Save activity", "บันทึกกิจกรรม")}
+            >
+              <ActionIcon kind="save" />
+            </button>
             <button
               type="button"
+              class="plan-icon-button icon44"
+              aria-label={t("Cancel", "ยกเลิก")}
+              title={t("Cancel", "ยกเลิก")}
               onClick={() => {
                 setActivityForm(null);
                 setShowActivityEditor(false);
               }}
             >
-              {t("Cancel", "ยกเลิก")}
+              <ActionIcon kind="cancel" />
             </button>
           </form>
         </section>

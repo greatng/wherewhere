@@ -575,9 +575,10 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
     .getByRole("button", { name: "Plan" })
     .click();
   const plan = page.getByRole("region", { name: "Trip plan" });
+  await expect(plan).not.toContainText("Asia/Bangkok");
 
   await plan
-    .getByText("Add city for a night or range", { exact: true })
+    .getByRole("button", { name: "Add city for a night or range" })
     .click();
   await plan.getByLabel("From (night of)").fill("2026-11-01");
   await plan.getByLabel("Through (inclusive)").fill("2026-11-03");
@@ -631,7 +632,7 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
       p_expected_versions: { "2026-11-02": 1 },
     });
 
-  await plan.getByText("Add accommodation", { exact: true }).click();
+  await plan.getByRole("button", { name: "Add accommodation" }).click();
   await plan.getByLabel("Name", { exact: true }).fill("Riverside Hotel");
   await plan.getByLabel("Check-in").fill("2026-11-01");
   await plan.getByLabel("Check-out (exclusive)").fill("2026-11-03");
@@ -698,6 +699,15 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await expect(
     createdActivity.getByRole("button", { name: "Remove" }),
   ).toBeVisible();
+  const planActions = plan.locator("button");
+  await expect(planActions).not.toHaveCount(0);
+  await expect(plan.locator(".plan-icon-button")).toHaveCount(
+    await planActions.count(),
+  );
+  for (const action of await planActions.all()) {
+    await expect(action).toHaveText("");
+    await expect(action.locator("svg")).toHaveCount(1);
+  }
   await createdActivity.getByRole("button", { name: "Edit activity" }).click();
   const createdActivityEditor = plan.locator(".plan-activity-editor");
   await expect(createdActivityEditor.getByLabel("Day")).toHaveValue(
@@ -718,9 +728,10 @@ test.describe("Plan editor regressions", () => {
     const tabs = page.getByRole("navigation", { name: "Trip sections" });
     await tabs.getByRole("button", { name: "Plan" }).click();
     const plan = page.getByRole("region", { name: "Trip plan" });
+    await expect(plan).not.toContainText("Asia/Bangkok");
 
     await plan
-      .getByText("Add city for a night or range", { exact: true })
+      .getByRole("button", { name: "Add city for a night or range" })
       .click();
     const nightForm = plan.locator("form.plan-form").first();
     await expectInViewport(nightForm.getByLabel("From (night of)"));
@@ -746,7 +757,7 @@ test.describe("Plan editor regressions", () => {
       .click();
     await expectInViewport(editNightForm.getByLabel("From (night of)"));
 
-    await plan.getByText("Add accommodation", { exact: true }).click();
+    await plan.getByRole("button", { name: "Add accommodation" }).click();
     const addStayForm = plan.locator(".plan-stays form.plan-form");
     await expectInViewport(addStayForm.getByLabel("Name", { exact: true }));
     await addStayForm
@@ -991,6 +1002,7 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     .getByRole("button", { name: "Plan" })
     .click();
   const plan = page.getByRole("region", { name: "Trip plan" });
+  await expect(plan).not.toContainText("Asia/Bangkok");
   const watArun = plan.locator(".plan-activity").filter({ hasText: "Wat Arun" });
   await expect(watArun).toContainText(/11:00/);
   await watArun.getByRole("button", { name: "Edit activity" }).click();
@@ -1192,12 +1204,27 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
   await expect(
     page.getByRole("region", { name: "Tonight destination and accommodation" }),
   ).toContainText("Bangkok");
+  await expect(page.locator("header")).not.toContainText("Asia/Bangkok");
+  await expect(
+    page.getByRole("region", { name: "Tonight destination and accommodation" }),
+  ).not.toContainText("Asia/Bangkok");
   await screenshot("today");
   await page
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Plan" })
     .click();
   await expect(page.locator(".plan-night").first()).toContainText("Bangkok");
+  const plan = page.getByRole("region", { name: "Trip plan" });
+  await expect(plan).not.toContainText("Asia/Bangkok");
+  const planActions = plan.locator("button");
+  await expect(planActions).not.toHaveCount(0);
+  await expect(plan.locator(".plan-icon-button")).toHaveCount(
+    await planActions.count(),
+  );
+  for (const action of await planActions.all()) {
+    await expect(action).toHaveText("");
+    await expect(action.locator("svg")).toHaveCount(1);
+  }
   await screenshot("plan");
   await page
     .getByRole("navigation", { name: "Trip sections" })

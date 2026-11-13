@@ -64,7 +64,7 @@ The refreshed Plan previews show destination nights, activities, and stays as fl
 
 Destination-time regressions run with an America/Los_Angeles browser and an Asia/Bangkok trip. They verify that 09:30 in Bangkok saves as 02:30Z and displays and edits as 09:30 in both Today and Plan, regardless of the browser timezone. A legacy Nov 2 02:00Z activity stays on Nov 2 at 09:00 Bangkok time after an unchanged save. Trip creation saves its IANA timezone, and changing it updates display/edit values while preserving the stored timestamp. Plan regressions also check the accessible Edit and Remove controls on the flat activity rows. The preview test also checks that Today, Plan, Expenses, and Trip have no horizontal overflow at both viewport sizes.
 
-The complete browser suite passed with 22 desktop and mobile Chromium runs: `npx playwright test e2e/trip-flow.spec.ts`.
+The full desktop/mobile run passed 21 of 22 tests. The remaining mobile screenshot capture failed with a transient Chromium context error; the identical test passed on isolated retry. All functional destination-time and editing checks passed. Command: `npx playwright test e2e/trip-flow.spec.ts`.
 
 ## Remaining release verification
 

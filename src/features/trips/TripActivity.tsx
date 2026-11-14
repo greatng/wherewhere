@@ -987,7 +987,7 @@ export function TripActivity({
               aria-current={tab === "plan" ? "page" : undefined}
               onClick={() => setTab("plan")}
             >
-              {tr("Plan", "แผนการเดินทาง")}
+              {tr("Itinerary", "แผนการเดินทาง")}
             </Button>
           )}
           <Button

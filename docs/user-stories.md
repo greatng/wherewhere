@@ -194,3 +194,12 @@ GitHub issue: https://github.com/greatng/wherewhere/issues/26
 As an installed-app user, I can see and explicitly apply a waiting app update without clearing identity or queued operations. AC1 detects waiting workers at launch and after installation; AC2 warns to save edits and reloads only after user-requested activation; AC3 checks on focus/online and handles unsupported registration; AC4 proves production-worker behavior and retained storage/outbox data. A red production reproduction confirmed a waiting worker with no update UI before this change.
 
 US25 live investigation: `https://roam.greatng.me` served the date-browser code. Ten desktop/mobile daily-overview tests passed against that deployed JavaScript with intercepted synthetic REST data and service workers blocked. This verifies the origin code, not the user's private session or trip data. The missing PWA update notice is a separate confirmed defect; stale user cache remains a plausible but unverified explanation for the report.
+
+
+## US27 — timeline itinerary and contextual organizer controls
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/27
+
+As a traveler I scan each day's city, hotel and activities as a timeline. Rename visible Plan navigation to Itinerary. Use a single card level with timeline markers, meaningful date/time information and directions, following the supplied reference. As an organizer I edit or remove existing records from three-dot menus and use an organizer-only floating action control for itinerary and accommodation actions. Preserve shared version-checked accommodation editing, destination time, dark mode, keyboard accessibility and participant read-only access. Do not fabricate booking confirmations, rooms, photos or unavailable check-in times. No backend changes.
+
+US27 verification: AC1 is covered by renamed Itinerary navigation and inspected light/dark timeline captures. AC2 passes overflow menu editing, Escape/outside dismissal and focus-restoration tests. AC3 passes floating-action entry and viewport checks. AC4 passes existing shared stay editing, destination-time, participant and daily browsing regressions. AC5 uses only existing records, with no invented booking metadata or schema changes. Lint/build and fourteen focused unit/component/domain tests pass. The full browser suite passed forty cases before final presentation-only refinements; six focused interaction/capture cases passed on the refined layout. Hosted traveler data was not changed.

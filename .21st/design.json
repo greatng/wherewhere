@@ -56,7 +56,8 @@
   "decisions": [
     "Keep ivory/moss light palette; use charcoal/moss dark palette.",
     "Follow system appearance until a user selects light or dark; persist explicit selection.",
-    "Authenticated catalog retrieval completed. Adapted shared buttons and compact Light/Dark/System choices; provenance and upstream snapshots in vendor/21st."
+    "Authenticated catalog retrieval completed. Adapted shared buttons and compact Light/Dark/System choices; provenance and upstream snapshots in vendor/21st.",
+    "US27: a single-level day timeline with hotel/activity cards replaces flat rows; row actions use overflow menus and organizer actions use a floating button."
   ],
   "evidence": [
     {

@@ -2,7 +2,7 @@
 
 Roam is a Preact/TypeScript PWA for small group trips. Travelers join through an expiring QR invitation, receive a persistent Supabase anonymous session, and wait for organizer approval. Approved travelers share an itinerary and expenses with deterministic whole-unit splits and suggested settlements. The dashboard keeps one trip workspace open at a time. Itinerary and expense data can be cached on the device, and expenses created offline are queued for inspection and retry when connectivity returns. English/Thai labels, 18px text and 56px buttons are included. No identity is created on launch.
 
-Phase 1 adds nightly city/date ranges and accommodation, daily activities with transport, expense date/time and correction, and trip archive/restore. The trip workspace presents Today, Plan, Expenses, and Trip sections for mobile use. Existing trip data remains readable after archiving; restoring a trip does not restore invitations that were revoked during archive.
+Phase 1 adds nightly city/date ranges and accommodation, daily activities with transport, expense date/time and correction, and trip archive/restore. The trip workspace presents Today, Itinerary, Expenses, and Trip sections for mobile use. Existing trip data remains readable after archiving; restoring a trip does not restore invitations that were revoked during archive.
 
 ## Run locally
 
@@ -73,7 +73,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The database tests execute the actual migrations in PGlite (PostgreSQL WASM), with Auth roles and `auth.uid()` emulated. They check membership isolation, unauthorized operations, invite handling, itinerary/check-in access, expense integrity, and supervised guest recovery. Playwright exercises trip selection, trip creation, a three-night plan range and middle-night edit, lodging, activities and transport, expense date/time and correction, Trip-tab management, confirmed deletion, account sign-out safety, persisted Senior view, and offline queue recovery in desktop and mobile Chromium against deterministic mocked Supabase responses. It checks form labels and captures dashboard and Today, Plan, Expenses, Trip, and Senior view previews in both viewports under a fixed trip date in `artifacts/`; those images are previews, not evidence of a live Supabase session or production data. These checks do not replace testing deployed Supabase Auth and Edge networking.
+The database tests execute the actual migrations in PGlite (PostgreSQL WASM), with Auth roles and `auth.uid()` emulated. They check membership isolation, unauthorized operations, invite handling, itinerary/check-in access, expense integrity, and supervised guest recovery. Playwright exercises trip selection, trip creation, a three-night plan range and middle-night edit, lodging, activities and transport, expense date/time and correction, Trip-tab management, confirmed deletion, account sign-out safety, persisted Senior view, and offline queue recovery in desktop and mobile Chromium against deterministic mocked Supabase responses. It checks form labels and captures dashboard and Today, Itinerary, Expenses, Trip, and Senior view previews in both viewports under a fixed trip date in `artifacts/`; those images are previews, not evidence of a live Supabase session or production data. These checks do not replace testing deployed Supabase Auth and Edge networking.
 
 Manual acceptance before release: use separate organizer and traveler browser profiles; request approval; confirm traveler cannot see a trip until approved; revoke an invite; reload both sessions; remove a traveler and refresh; test offline entry and recovery after going online; install the production build on iOS and Android and repeat enrollment/relaunch. Real-device storage separation, push/install behavior, and the hosted Auth/Edge flow have not been verified by the browser fixture. Sessions remain recoverable only while local auth storage survives.
 
@@ -93,7 +93,7 @@ Participant check-in and attendance controls have been retired. Historical serve
 
 ## Daily plan and accommodation
 
-Plan's Daily overview groups each date's overnight city, hotel and activities together. The separate Accommodation view lists stays. Organizers can open the same version-checked accommodation editor from either view; a multi-night edit affects the displayed stay range, not a duplicate booking. Check-out dates are exclusive.
+Itinerary's Daily overview groups each date's overnight city, hotel and activities together. The separate Accommodation view lists stays. Organizers can open the same version-checked accommodation editor from either view; a multi-night edit affects the displayed stay range, not a duplicate booking. Check-out dates are exclusive.
 
 Today includes previous/next controls and an itinerary-date field. It defaults to destination-local today during the trip, the first day before departure, and the last day afterward. The selected day shows its city, hotel, directions and complete itinerary; free days still show accommodation and the next planned activity date when available. Current/next highlights apply only to the actual destination-local today. English user stories: [US24 and US25](docs/stories/daily-overviews.md).
 
@@ -105,3 +105,6 @@ When a newer PWA worker is waiting, Roam shows **Update app**. Save any open for
 Older installed versions did not include this notice. If the web deployment is current but controls are missing, close every Roam browser tab and installed-app window, then reopen the app. Do not clear browser storage or site data: anonymous session identity can be lost. Reloading a page alone may leave the older worker waiting while another tab remains open.
 
 Run `npm run test:pwa` to build and verify actual production service-worker installation, waiting update discovery on launch, explicit activation/reload, and retention of a storage marker and queued expense. It uses an isolated local browser profile and synthetic data. CI runs the same script against its generated build.
+
+
+Itinerary uses day-by-day timeline cards. Organizers open each record's three-dot menu to edit/remove it, or use the floating **Edit itinerary** control to add activities, city nights or accommodation and open accommodation management. Participants see the same itinerary without editing controls. The design does not imply booking confirmation or room counts unless those data are actually available.

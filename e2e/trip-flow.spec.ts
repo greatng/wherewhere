@@ -1,4 +1,18 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
+
+async function chooseOverflowAction(
+  record: Locator,
+  name: string,
+  action: string,
+) {
+  await record.getByRole("button", { name: `Options for ${name}` }).click();
+  await record.getByRole("menuitem", { name: action }).click();
+}
+
+async function chooseItineraryAction(plan: Locator, action: string) {
+  await plan.getByRole("button", { name: "Edit itinerary" }).click();
+  await plan.getByRole("menuitem", { name: action }).click();
+}
 
 const uid = "11111111-1111-4111-8111-111111111111";
 const tripId = "22222222-2222-4222-8222-222222222222";
@@ -618,14 +632,12 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await openTrip(page);
   await page
     .getByRole("navigation", { name: "Trip sections" })
-    .getByRole("button", { name: "Plan" })
+    .getByRole("button", { name: "Itinerary" })
     .click();
-  const plan = page.getByRole("region", { name: "Trip plan" });
+  const plan = page.getByRole("region", { name: "Trip itinerary" });
   await expect(plan).not.toContainText("Asia/Bangkok");
 
-  await plan
-    .getByRole("button", { name: "Add city for a night or range" })
-    .click();
+  await chooseItineraryAction(plan, "Add city for a night or range");
   await plan.getByLabel("From (night of)").fill("2026-11-01");
   await plan.getByLabel("Through (inclusive)").fill("2026-11-03");
   await plan.getByLabel("City", { exact: true }).first().fill("Chiang Mai");
@@ -652,11 +664,11 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
     });
   await expect(plan.getByText("Chiang Mai", { exact: true })).toHaveCount(3);
 
-  await plan
-    .locator(".plan-night")
-    .nth(1)
-    .getByRole("button", { name: "Edit this night" })
-    .click();
+  await chooseOverflowAction(
+    plan.locator(".plan-night").nth(1),
+    "Chiang Mai",
+    "Edit this night",
+  );
   await plan
     .getByLabel("I understand this will overwrite the selected nights")
     .check();
@@ -678,9 +690,9 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
       p_expected_versions: { "2026-11-02": 1 },
     });
 
-  const planViews = plan.getByRole("navigation", { name: "Plan view" });
+  const planViews = plan.getByRole("navigation", { name: "Itinerary view" });
   await planViews.getByRole("button", { name: "Accommodation" }).click();
-  await plan.getByRole("button", { name: "Add accommodation" }).click();
+  await chooseItineraryAction(plan, "Add accommodation");
   await plan.getByLabel("Name", { exact: true }).fill("Riverside Hotel");
   await plan.getByLabel("Check-in").fill("2026-11-01");
   await plan.getByLabel("Check-out (exclusive)").fill("2026-11-03");
@@ -703,12 +715,8 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
       p_expected_version: null,
     });
 
-  await planViews.getByRole("button", { name: "Daily overview" }).click();
-  await plan
-    .locator(".plan-night")
-    .nth(1)
-    .getByRole("button", { name: "Add activity" })
-    .click();
+  await planViews.getByRole("button", { name: "Daily itinerary" }).click();
+  await chooseItineraryAction(plan, "Add activity");
   await plan
     .locator(".plan-activity-editor")
     .getByLabel("Day")
@@ -746,21 +754,21 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
     .filter({ hasText: "Doi Suthep visit" });
   await expect(createdActivity).toContainText(/9:30/);
   await expect(
-    createdActivity.getByRole("button", { name: "Edit activity" }),
+    createdActivity.getByRole("button", {
+      name: "Options for Doi Suthep visit",
+    }),
   ).toBeVisible();
-  await expect(
-    createdActivity.getByRole("button", { name: "Remove" }),
-  ).toBeVisible();
-  const planActions = plan.locator(".plan-nights button");
-  await expect(planActions).not.toHaveCount(0);
-  await expect(plan.locator(".plan-icon-button")).toHaveCount(
-    await planActions.count(),
-  );
-  for (const action of await planActions.all()) {
-    await expect(action).toHaveText("");
-    await expect(action.locator("svg")).toHaveCount(1);
+  const overflowTriggers = plan.locator(".overflow-trigger");
+  await expect(overflowTriggers).not.toHaveCount(0);
+  for (const trigger of await overflowTriggers.all()) {
+    await expect(trigger).toHaveText("");
+    await expect(trigger.locator("svg")).toHaveCount(1);
   }
-  await createdActivity.getByRole("button", { name: "Edit activity" }).click();
+  await chooseOverflowAction(
+    createdActivity,
+    "Doi Suthep visit",
+    "Edit activity",
+  );
   const createdActivityEditor = plan.locator(".plan-activity-editor");
   await expect(createdActivityEditor.getByLabel("Day")).toHaveValue(
     "2026-11-02",
@@ -778,13 +786,11 @@ test.describe("Plan editor regressions", () => {
     await page.goto("/");
     await openTrip(page);
     const tabs = page.getByRole("navigation", { name: "Trip sections" });
-    await tabs.getByRole("button", { name: "Plan" }).click();
-    const plan = page.getByRole("region", { name: "Trip plan" });
+    await tabs.getByRole("button", { name: "Itinerary" }).click();
+    const plan = page.getByRole("region", { name: "Trip itinerary" });
     await expect(plan).not.toContainText("Asia/Bangkok");
 
-    await plan
-      .getByRole("button", { name: "Add city for a night or range" })
-      .click();
+    await chooseItineraryAction(plan, "Add city for a night or range");
     const nightForm = plan.locator("form.plan-form").first();
     await expectInViewport(nightForm.getByLabel("From (night of)"));
     await nightForm.getByLabel("From (night of)").fill("2026-11-03");
@@ -794,24 +800,24 @@ test.describe("Plan editor regressions", () => {
       .first()
       .fill("Test city");
     await nightForm.getByRole("button", { name: "Save destination" }).click();
-    await plan
-      .locator(".plan-night")
-      .nth(1)
-      .getByRole("button", { name: "Edit this night" })
-      .click();
+    await chooseOverflowAction(
+      plan.locator(".plan-night").nth(1),
+      "Bangkok",
+      "Edit this night",
+    );
     const editNightForm = plan.locator("form.plan-form").first();
     await expectInViewport(editNightForm.getByLabel("From (night of)"));
     // Selecting another item while the editor is open must keep the editor usable.
-    await plan
-      .locator(".plan-night")
-      .nth(0)
-      .getByRole("button", { name: "Edit this night" })
-      .click();
+    await chooseOverflowAction(
+      plan.locator(".plan-night").nth(0),
+      "Bangkok",
+      "Edit this night",
+    );
     await expectInViewport(editNightForm.getByLabel("From (night of)"));
 
-    const planViews = plan.getByRole("navigation", { name: "Plan view" });
+    const planViews = plan.getByRole("navigation", { name: "Itinerary view" });
     await planViews.getByRole("button", { name: "Accommodation" }).click();
-    await plan.getByRole("button", { name: "Add accommodation" }).click();
+    await chooseItineraryAction(plan, "Add accommodation");
     const addStayForm = plan.locator(".plan-stays form.plan-form");
     await expectInViewport(addStayForm.getByLabel("Name", { exact: true }));
     await addStayForm
@@ -828,7 +834,11 @@ test.describe("Plan editor regressions", () => {
     const originalStay = plan
       .locator(".plan-stay")
       .filter({ hasText: "River House" });
-    await originalStay.getByRole("button", { name: "Edit" }).click();
+    await chooseOverflowAction(
+      originalStay,
+      "River House",
+      "Edit accommodation",
+    );
     const editStayForm = plan.locator(".plan-stays form.plan-form");
     await expectInViewport(editStayForm.getByLabel("Name", { exact: true }));
     await expect(editStayForm.getByLabel("Name", { exact: true })).toHaveValue(
@@ -889,9 +899,11 @@ test.describe("Plan editor regressions", () => {
       .locator(".plan-stay")
       .filter({ hasText: "River House Updated" });
     await expect(updatedStay).toBeVisible();
-    await updatedStay
-      .getByRole("button", { name: "Edit accommodation" })
-      .click();
+    await chooseOverflowAction(
+      updatedStay,
+      "River House Updated",
+      "Edit accommodation",
+    );
     const accommodationEditor = accommodation.locator("form.plan-form");
     await expect(
       accommodationEditor.getByLabel("Name", { exact: true }),
@@ -922,16 +934,12 @@ test.describe("Plan editor regressions", () => {
         name: "River House Menu Edit",
         version: 3,
       });
-    await planViews.getByRole("button", { name: "Daily overview" }).click();
+    await planViews.getByRole("button", { name: "Daily itinerary" }).click();
     await expect(
       plan.locator(".plan-night").nth(1).locator(".plan-daily-stay"),
     ).toContainText("River House Menu Edit");
 
-    const addActivityButton = plan
-      .locator(".plan-night")
-      .nth(1)
-      .getByRole("button", { name: "Add activity" });
-    await addActivityButton.click();
+    await chooseItineraryAction(plan, "Add activity");
     await expectInViewport(
       plan.locator(".plan-activity-editor").getByLabel("Day"),
     );
@@ -1000,13 +1008,13 @@ test.describe("Browser timezone differs from trip timezone", () => {
 
     await page
       .getByRole("navigation", { name: "Trip sections" })
-      .getByRole("button", { name: "Plan" })
+      .getByRole("button", { name: "Itinerary" })
       .click();
-    const plan = page.getByRole("region", { name: "Trip plan" });
+    const plan = page.getByRole("region", { name: "Trip itinerary" });
     const legacyActivity = plan
       .locator(".plan-activity")
       .filter({ hasText: "Wat Arun" });
-    await legacyActivity.getByRole("button", { name: "Edit activity" }).click();
+    await chooseOverflowAction(legacyActivity, "Wat Arun", "Edit activity");
     const legacyEditor = plan.locator(".plan-activity-editor");
     await expectInViewport(legacyEditor.getByLabel("Day"));
     await expect(legacyEditor.getByLabel("Day")).toHaveValue("2026-11-02");
@@ -1033,7 +1041,7 @@ test.describe("Browser timezone differs from trip timezone", () => {
       .locator(".plan-activity")
       .filter({ hasText: "LA breakfast" });
     await expect(activity).toContainText(/10:00/);
-    await activity.getByRole("button", { name: "Edit activity" }).click();
+    await chooseOverflowAction(activity, "LA breakfast", "Edit activity");
     const editor = plan.locator(".plan-activity-editor");
     await expectInViewport(editor.getByLabel("Day"));
     await expect(editor.getByLabel("Day")).toHaveValue("2026-11-02");
@@ -1104,15 +1112,15 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     .toMatchObject({ p_trip_id: tripId, p_timezone: "Asia/Tokyo" });
   await page
     .getByRole("navigation", { name: "Trip sections" })
-    .getByRole("button", { name: "Plan" })
+    .getByRole("button", { name: "Itinerary" })
     .click();
-  const plan = page.getByRole("region", { name: "Trip plan" });
+  const plan = page.getByRole("region", { name: "Trip itinerary" });
   await expect(plan).not.toContainText("Asia/Bangkok");
   const watArun = plan
     .locator(".plan-activity")
     .filter({ hasText: "Wat Arun" });
   await expect(watArun).toContainText(/11:00/);
-  await watArun.getByRole("button", { name: "Edit activity" }).click();
+  await chooseOverflowAction(watArun, "Wat Arun", "Edit activity");
   await expect(
     plan.locator(".plan-activity-editor").getByLabel("Destination time"),
   ).toHaveValue("11:00");
@@ -1303,7 +1311,7 @@ test("Senior view persists on this device and hides editing tabs", async ({
     page.locator(".next-stop").getByRole("link", { name: "Open directions" }),
   ).toHaveAttribute("href", /google\.com\/maps\/(dir|search)\//);
   const tabs = page.getByRole("navigation", { name: "Trip sections" });
-  await expect(tabs.getByRole("button", { name: "Plan" })).toHaveCount(0);
+  await expect(tabs.getByRole("button", { name: "Itinerary" })).toHaveCount(0);
   await expect(tabs.getByRole("button", { name: "Expenses" })).toHaveCount(0);
   await expect(tabs).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit stop" })).toHaveCount(0);
@@ -1333,6 +1341,74 @@ test("Senior view persists on this device and hides editing tabs", async ({
 });
 
 test.describe("Daily itinerary browser regressions", () => {
+  test("itinerary menus close with Escape and outside click, and directions remain available", async ({
+    page,
+  }, testInfo) => {
+    await installFixture(page);
+    await page.goto("/");
+    await openTrip(page);
+    await page
+      .getByRole("navigation", { name: "Trip sections" })
+      .getByRole("button", { name: "Itinerary" })
+      .click();
+    const itinerary = page.getByRole("region", { name: "Trip itinerary" });
+    const day = itinerary.locator(".plan-night").nth(1);
+    const activity = day
+      .locator(".plan-activity")
+      .filter({ hasText: "Wat Arun" });
+    await expect(
+      activity.getByRole("link", { name: "Directions" }),
+    ).toHaveAttribute("href", /google\.com\/maps\/search/);
+    await expect(
+      day.locator(".plan-daily-stay").getByRole("link", { name: "Directions" }),
+    ).toHaveAttribute("href", /google\.com\/maps\/search/);
+
+    const trigger = activity.getByRole("button", {
+      name: "Options for Wat Arun",
+    });
+    await trigger.click();
+    const menu = activity.getByRole("menu");
+    await expect(
+      menu.getByRole("menuitem", { name: "Edit activity" }),
+    ).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Remove" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    await trigger.click();
+    await page.getByRole("heading", { name: "Trip itinerary" }).click();
+    await expect(activity.getByRole("menu")).toHaveCount(0);
+
+    const fab = itinerary.getByRole("button", { name: "Edit itinerary" });
+    await itinerary
+      .locator(".plan-night")
+      .first()
+      .locator(".plan-day-heading")
+      .scrollIntoViewIfNeeded();
+    await expect(fab).toBeInViewport({ ratio: 1 });
+    if (testInfo.project.name === "mobile-chromium") {
+      await page.screenshot({
+        path: "artifacts/mobile-chromium-itinerary-viewport-fixture-preview.png",
+      });
+    }
+    await fab.click();
+    const actions = itinerary.getByRole("menu", { name: "Itinerary actions" });
+    await expect(actions).toBeInViewport({ ratio: 1 });
+    await expect(
+      actions.getByRole("menuitem", { name: "Add activity" }),
+    ).toBeVisible();
+    await expect(
+      actions.getByRole("menuitem", { name: "Add city for a night or range" }),
+    ).toBeVisible();
+    await expect(
+      actions.getByRole("menuitem", { name: "Add accommodation" }),
+    ).toBeVisible();
+    await expect(
+      actions.getByRole("menuitem", { name: "Accommodation management" }),
+    ).toBeVisible();
+  });
+
   test("editing a daily hotel and editing it from Accommodation keep the same stay version", async ({
     page,
   }) => {
@@ -1341,18 +1417,19 @@ test.describe("Daily itinerary browser regressions", () => {
     await openTrip(page);
     await page
       .getByRole("navigation", { name: "Trip sections" })
-      .getByRole("button", { name: "Plan" })
+      .getByRole("button", { name: "Itinerary" })
       .click();
-    const plan = page.getByRole("region", { name: "Trip plan" });
-    const planViews = plan.getByRole("navigation", { name: "Plan view" });
+    const plan = page.getByRole("region", { name: "Trip itinerary" });
+    const planViews = plan.getByRole("navigation", { name: "Itinerary view" });
     const secondDay = plan.locator(".plan-night").nth(1);
     await expect(secondDay.locator(".plan-daily-stay")).toContainText(
       "River House",
     );
-    await secondDay
-      .locator(".plan-daily-stay")
-      .getByRole("button", { name: "Edit accommodation" })
-      .click();
+    await chooseOverflowAction(
+      secondDay.locator(".plan-daily-stay"),
+      "River House",
+      "Edit accommodation",
+    );
     const accommodation = plan.locator(".plan-stays");
     const editor = accommodation.locator("form.plan-form");
     await expect(editor.getByLabel("Name", { exact: true })).toHaveValue(
@@ -1389,8 +1466,9 @@ test.describe("Daily itinerary browser regressions", () => {
     await plan
       .locator(".plan-stay")
       .filter({ hasText: "River House Daily Edit" })
-      .getByRole("button", { name: "Edit accommodation" })
+      .getByRole("button", { name: "Options for River House Daily Edit" })
       .click();
+    await plan.getByRole("menuitem", { name: "Edit accommodation" }).click();
     await expect(editor.getByLabel("Name", { exact: true })).toHaveValue(
       "River House Daily Edit",
     );
@@ -1418,7 +1496,7 @@ test.describe("Daily itinerary browser regressions", () => {
         name: "River House Accommodation Edit",
         version: 3,
       });
-    await planViews.getByRole("button", { name: "Daily overview" }).click();
+    await planViews.getByRole("button", { name: "Daily itinerary" }).click();
     await expect(
       plan.locator(".plan-night").nth(1).locator(".plan-daily-stay"),
     ).toContainText("River House Accommodation Edit");
@@ -1516,42 +1594,36 @@ test.describe("Daily itinerary browser regressions", () => {
     await installFixture(page, { participant: true, daily: true });
     await page.goto("/");
     await openTrip(page);
-    const plan = page.getByRole("region", { name: "Trip plan" });
+    const plan = page.getByRole("region", { name: "Trip itinerary" });
     await page
       .getByRole("navigation", { name: "Trip sections" })
-      .getByRole("button", { name: "Plan" })
+      .getByRole("button", { name: "Itinerary" })
       .click();
     await expect(
       plan.locator(".plan-night").nth(1).locator(".plan-daily-stay"),
     ).toContainText("River House");
     await expect(
-      plan.getByRole("navigation", { name: "Plan view" }).getByRole("button", {
-        name: "Accommodation",
-      }),
+      plan
+        .getByRole("navigation", { name: "Itinerary view" })
+        .getByRole("button", {
+          name: "Accommodation",
+        }),
     ).toBeVisible();
     await plan
-      .getByRole("navigation", { name: "Plan view" })
+      .getByRole("navigation", { name: "Itinerary view" })
       .getByRole("button", { name: "Accommodation" })
       .click();
     await expect(
       plan.locator(".plan-stay").filter({ hasText: "River House" }).first(),
     ).toBeVisible();
     await expect(
-      plan.getByRole("button", { name: "Edit accommodation" }),
+      plan.getByRole("button", { name: "Edit itinerary" }),
     ).toHaveCount(0);
-    await expect(
-      plan.getByRole("button", { name: "Add accommodation" }),
-    ).toHaveCount(0);
-    await expect(
-      plan.getByRole("button", { name: "Edit this night" }),
-    ).toHaveCount(0);
-    await expect(
-      plan.locator(".plan-activity").getByRole("button"),
-    ).toHaveCount(0);
+    await expect(plan.locator(".overflow-trigger")).toHaveCount(0);
   });
 });
 
-test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok date", async ({
+test("captures Today, Itinerary, Expenses, and Trip previews with a fixed Bangkok date", async ({
   page,
 }, testInfo) => {
   await page.clock.install({ time: new Date("2026-11-02T03:00:00.000Z") });
@@ -1587,10 +1659,10 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
   await screenshot("today");
   await page
     .getByRole("navigation", { name: "Trip sections" })
-    .getByRole("button", { name: "Plan" })
+    .getByRole("button", { name: "Itinerary" })
     .click();
   await expect(page.locator(".plan-night").first()).toContainText("Bangkok");
-  const plan = page.getByRole("region", { name: "Trip plan" });
+  const plan = page.getByRole("region", { name: "Trip itinerary" });
   const dayGroups = plan.locator(".plan-nights > .plan-night");
   await expect(dayGroups).toHaveCount(4);
   for (const [index, date] of [
@@ -1600,27 +1672,34 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
     "2026-11-04",
   ].entries()) {
     const group = dayGroups.nth(index);
-    await expect(group.locator(":scope > .plan-day-heading")).toContainText(
+    await expect(group.locator(".plan-day-heading")).toContainText(
       `Day ${index + 1}`,
     );
-    await expect(
-      group.locator(":scope > .plan-day-heading time"),
-    ).toHaveAttribute("datetime", date);
+    await expect(group.locator(".plan-day-heading time")).toHaveAttribute(
+      "datetime",
+      date,
+    );
     await expect(group.locator(".plan-night")).toHaveCount(0);
   }
   await expect(plan).not.toContainText("Asia/Bangkok");
-  const planActions = plan.locator(".plan-nights button");
-  await expect(planActions).not.toHaveCount(0);
-  await expect(plan.locator(".plan-icon-button")).toHaveCount(
-    await planActions.count(),
-  );
-  for (const action of await planActions.all()) {
-    await expect(action).toHaveText("");
-    await expect(action.locator("svg")).toHaveCount(1);
+  const overflowTriggers = plan.locator(".overflow-trigger");
+  await expect(overflowTriggers).not.toHaveCount(0);
+  for (const trigger of await overflowTriggers.all()) {
+    await expect(trigger).toHaveText("");
+    await expect(trigger.locator("svg")).toHaveCount(1);
   }
-  await screenshot("plan");
+  const lastDay = dayGroups.last();
+  await lastDay.scrollIntoViewIfNeeded();
+  const lastDayBox = await lastDay.boundingBox();
+  const fabBox = await plan
+    .getByRole("button", { name: "Edit itinerary" })
+    .boundingBox();
+  expect(lastDayBox).not.toBeNull();
+  expect(fabBox).not.toBeNull();
+  expect(lastDayBox!.y + lastDayBox!.height).toBeLessThanOrEqual(fabBox!.y + 4);
+  await screenshot("itinerary");
   await plan
-    .getByRole("navigation", { name: "Plan view" })
+    .getByRole("navigation", { name: "Itinerary view" })
     .getByRole("button", { name: "Accommodation" })
     .click();
   await expect(
@@ -1758,30 +1837,30 @@ test("captures dark trip tabs and light preview without horizontal overflow", as
     });
   };
   await capture("today", "dark");
-  for (const tab of ["Plan", "Expenses", "Trip"] as const) {
+  for (const tab of ["Itinerary", "Expenses", "Trip"] as const) {
     await page
       .getByRole("navigation", { name: "Trip sections" })
       .getByRole("button", { name: tab, exact: true })
       .click();
-    if (tab === "Plan") {
-      const plan = page.getByRole("region", { name: "Trip plan" });
+    if (tab === "Itinerary") {
+      const plan = page.getByRole("region", { name: "Trip itinerary" });
       const dayGroups = plan.locator(".plan-nights > .plan-night");
       await expect(dayGroups).toHaveCount(4);
+      await expect(dayGroups.nth(0).locator(".plan-day-heading")).toContainText(
+        "Day 1",
+      );
+      await expect(dayGroups.nth(1).locator(".plan-day-heading")).toContainText(
+        "Day 2",
+      );
       await expect(
-        dayGroups.nth(0).locator(":scope > .plan-day-heading"),
-      ).toContainText("Day 1");
-      await expect(
-        dayGroups.nth(1).locator(":scope > .plan-day-heading"),
-      ).toContainText("Day 2");
-      await expect(
-        dayGroups.nth(0).locator(":scope > .plan-day-heading time"),
+        dayGroups.nth(0).locator(".plan-day-heading time"),
       ).toHaveAttribute("datetime", "2026-11-01");
       await expect(
-        dayGroups.nth(1).locator(":scope > .plan-day-heading time"),
+        dayGroups.nth(1).locator(".plan-day-heading time"),
       ).toHaveAttribute("datetime", "2026-11-02");
       await expect(plan.locator(".plan-night .plan-night")).toHaveCount(0);
       await plan
-        .getByRole("navigation", { name: "Plan view" })
+        .getByRole("navigation", { name: "Itinerary view" })
         .getByRole("button", { name: "Accommodation" })
         .click();
       await expect(
@@ -1789,8 +1868,8 @@ test("captures dark trip tabs and light preview without horizontal overflow", as
       ).toBeVisible();
       await capture("accommodation", "dark");
       await plan
-        .getByRole("navigation", { name: "Plan view" })
-        .getByRole("button", { name: "Daily overview" })
+        .getByRole("navigation", { name: "Itinerary view" })
+        .getByRole("button", { name: "Daily itinerary" })
         .click();
     }
     await capture(tab.toLowerCase(), "dark");

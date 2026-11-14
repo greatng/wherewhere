@@ -16,11 +16,11 @@ These screenshots are fixture-backed previews. They show the UI at desktop and m
 
 ![Mobile Today fixture preview](../artifacts/mobile-chromium-today-fixture-preview.png)
 
-## Plan
+## Itinerary
 
-![Desktop Plan fixture preview](../artifacts/desktop-chromium-plan-fixture-preview.png)
+![Desktop Itinerary fixture preview](../artifacts/desktop-chromium-itinerary-fixture-preview.png)
 
-![Mobile Plan fixture preview](../artifacts/mobile-chromium-plan-fixture-preview.png)
+![Mobile Itinerary fixture preview](../artifacts/mobile-chromium-itinerary-fixture-preview.png)
 
 ## Expenses
 
@@ -36,7 +36,7 @@ These screenshots are fixture-backed previews. They show the UI at desktop and m
 
 ## Dark and light themes
 
-The theme checks verify that the selected light or dark mode is applied before the page renders, persists in `paikan-theme` after reload, and that a browser with no saved preference follows system light/dark changes live. The fixture uses a fresh context for system preference checks, so it does not clear or replace the primary context's saved theme. Both viewport projects capture Today, Plan, Expenses, and Trip in dark mode, plus a light Today preview. Each capture checks the document width against the viewport to catch horizontal overflow.
+The theme checks verify that the selected light or dark mode is applied before the page renders, persists in `paikan-theme` after reload, and that a browser with no saved preference follows system light/dark changes live. The fixture uses a fresh context for system preference checks, so it does not clear or replace the primary context's saved theme. Both viewport projects capture Today, Itinerary, Expenses, and Trip in dark mode, plus a light Today preview. Each capture checks the document width against the viewport to catch horizontal overflow.
 
 The signed-in account menu includes an Appearance radio group with Light, Dark, and System choices. Browser coverage verifies the selected radio, persistence of explicit Dark, and live OS changes after returning to System. Desktop and mobile fixtures capture the open account menu:
 
@@ -52,9 +52,9 @@ The signed-in account menu includes an Appearance radio group with Light, Dark, 
 
 ![Mobile light Today preview](../artifacts/mobile-chromium-light-today-fixture-preview.png)
 
-The matching dark Plan, Expenses, and Trip previews use the same `desktop-chromium-dark-<tab>-fixture-preview.png` and `mobile-chromium-dark-<tab>-fixture-preview.png` naming pattern in `artifacts/`.
+The matching dark Itinerary, Expenses, and Trip previews use the same `desktop-chromium-dark-<tab>-fixture-preview.png` and `mobile-chromium-dark-<tab>-fixture-preview.png` naming pattern in `artifacts/`.
 
-The focused theme and preview tests passed in desktop and mobile Chromium, and the trip Plan itinerary/accommodation editor smoke flow passed in both projects. The previews were visually checked for readable text against the page and card backgrounds; viewport-width assertions passed for every captured tab.
+The focused theme and preview tests passed in desktop and mobile Chromium, and the trip Itinerary/accommodation editor smoke flow passed in both projects. The previews were visually checked for readable text against the page and card backgrounds; viewport-width assertions passed for every captured tab.
 
 ## Senior view
 
@@ -80,7 +80,7 @@ The focused theme and preview tests passed in desktop and mobile Chromium, and t
 
 ![Mobile accommodation editor](../artifacts/mobile-chromium-accommodation-editor-fixture-preview.png)
 
-The Plan regressions check that add and edit forms scroll into view, that selecting another night while editing keeps the form usable, and that editing a closed accommodation form saves the same stay ID with its next version. The mobile editor preview shows the saved fields and both actions within the compact layout. The [compact mobile Plan preview](../artifacts/mobile-chromium-plan-fixture-preview.png) shows the tab layout.
+The Plan regressions check that add and edit forms scroll into view, that selecting another night while editing keeps the form usable, and that editing a closed accommodation form saves the same stay ID with its next version. The mobile editor preview shows the saved fields and both actions within the compact layout. The [compact mobile Itinerary preview](../artifacts/mobile-chromium-itinerary-fixture-preview.png) shows the tab layout.
 
 The refreshed Plan previews show destination nights, activities, and stays as flat rows instead of stacked cards. Plan row actions are SVG-only buttons with accessible names and matching titles. The visible Plan, Today, and header UI omits the trip timezone label while date and time entry still uses the destination timezone.
 
@@ -92,17 +92,35 @@ The existing focused desktop/mobile verification passed 10/10 cases: account App
 
 The browser fixture does not exercise deployed Supabase Auth or Edge Function networking, rate limiting through the production proxy, real organizer-assisted recovery, multiple real browser profiles, browser storage loss, or installed PWA behavior. Before release, repeat the README manual acceptance steps against a configured Supabase project and test installation, offline recovery, and persisted sessions on physical iOS and Android devices.
 
-
 ## US24–US25 daily overviews
 
-Plan displays each day's city, hotel and activities. Accommodation is an alternate Plan view with the same version-checked stay editor. Today supports a bounded itinerary date and previous/next controls, with selected-day city/stay, full activity list, free days and next planned date. Senior view retains the complete selected-day itinerary without editing controls.
+Itinerary displays each day's city, hotel and activities. Accommodation is an alternate Itinerary view with the same version-checked stay editor. Today supports a bounded itinerary date and previous/next controls, with selected-day city/stay, full activity list, free days and next planned date. Senior view retains the complete selected-day itinerary without editing controls.
 
 New regressions cover daily/Accommodation editing using the same stay ID and successive versions, check-in-inclusive/check-out-exclusive coverage, first/last default dates outside the trip, participant read-only access, and selected-day city/hotel/activity alignment. Fixture-only extended destinations/stays support adjacent-night transitions without changing the baseline fixture used for older flows.
 
-[Mobile daily overview](../artifacts/mobile-chromium-plan-fixture-preview.png), [mobile Today](../artifacts/mobile-chromium-today-fixture-preview.png), [mobile Accommodation](../artifacts/mobile-chromium-accommodation-fixture-preview.png), and [dark daily overview](../artifacts/mobile-chromium-dark-plan-fixture-preview.png) are deterministic sample previews, not hosted traveler data.
+[Mobile daily overview](../artifacts/mobile-chromium-itinerary-fixture-preview.png), [mobile Today](../artifacts/mobile-chromium-today-fixture-preview.png), [mobile Accommodation](../artifacts/mobile-chromium-accommodation-fixture-preview.png), and [dark daily overview](../artifacts/mobile-chromium-dark-itinerary-fixture-preview.png) are deterministic sample previews, not hosted traveler data.
+
+## Issue 27 itinerary timeline
+
+The trip section is named Itinerary. Daily itinerary and Accommodation stay as two views in that section. Organizers open the Edit itinerary menu for add actions; each city, activity, and stay has an Options menu for its existing edit and remove actions. Browser coverage checks menu keyboard and outside-click dismissal, organizer-only controls, directions links, and that the fixed action button does not cover the final day. The captures include both views in light and dark mode on desktop and mobile.
+
+![Desktop Itinerary timeline](../artifacts/desktop-chromium-itinerary-fixture-preview.png)
+
+![Mobile Itinerary timeline](../artifacts/mobile-chromium-itinerary-fixture-preview.png)
+
+![Desktop Accommodation view](../artifacts/desktop-chromium-accommodation-fixture-preview.png)
+
+![Mobile Accommodation view](../artifacts/mobile-chromium-accommodation-fixture-preview.png)
+
+![Desktop dark Itinerary timeline](../artifacts/desktop-chromium-dark-itinerary-fixture-preview.png)
+
+![Mobile dark Itinerary timeline](../artifacts/mobile-chromium-dark-itinerary-fixture-preview.png)
+
+![Desktop dark Accommodation view](../artifacts/desktop-chromium-dark-accommodation-fixture-preview.png)
+
+![Mobile dark Accommodation view](../artifacts/mobile-chromium-dark-accommodation-fixture-preview.png)
 
 Final US24–US25 verification: lint and production build pass; twelve focused component/domain tests pass. The full browser suite completed with 37 of 38 passing; the mobile editor navigation case exposed competing smooth-scroll navigation during view switching. Editor navigation was changed to an immediate scroll. All twelve affected desktop/mobile editor and daily-overview cases then passed. The full 38-case suite was not repeated after that focused fix. Refreshed light/dark Today, daily Plan and Accommodation screenshots were inspected; the mobile Plan view choices fit on one row.
-
 
 ## PWA update regression and live-origin investigation
 

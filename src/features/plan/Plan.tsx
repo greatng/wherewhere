@@ -7,6 +7,7 @@ import { expandDateRange, formatDateLabel } from "./dates";
 import { tripWallTimeToIso } from "./timezone";
 import { revealEditor } from "../../shared/editor-navigation";
 import { ActionIcon } from "../../shared/ActionIcon";
+import { OverflowMenu } from "../../shared/ui/OverflowMenu";
 import { stayForDate } from "./day";
 
 export type TripLike = {
@@ -116,6 +117,7 @@ export function Plan({
   const [showNightEditor, setShowNightEditor] = useState(false);
   const [showStayEditor, setShowStayEditor] = useState(false);
   const [showActivityEditor, setShowActivityEditor] = useState(false);
+  const [showOrganizerActions, setShowOrganizerActions] = useState(false);
   const [planView, setPlanView] = useState<"daily" | "accommodation">("daily");
   const [stayDate, setStayDate] = useState(trip.start_date);
   const [editorNavigation, setEditorNavigation] = useState(0);
@@ -129,6 +131,8 @@ export function Plan({
   const nightEditorRef = useRef<HTMLFormElement>(null);
   const stayEditorRef = useRef<HTMLFormElement>(null);
   const activityEditorRef = useRef<HTMLFormElement>(null);
+  const organizerActionsRef = useRef<HTMLDivElement>(null);
+  const organizerFocusIndex = useRef(0);
   const nights = useQuery({
     queryKey: ["plan-nights", uid, trip.id],
     queryFn: async () => {
@@ -440,9 +444,20 @@ export function Plan({
     if (showActivityEditor && editorNavigationTarget === "activity")
       revealEditor(activityEditorRef.current);
   }, [showActivityEditor, editorNavigation, editorNavigationTarget]);
+  useEffect(() => {
+    if (!showOrganizerActions) return;
+    const actionItems = organizerActionsRef.current?.querySelectorAll<HTMLButtonElement>("[role='menuitem']");
+    actionItems?.[organizerFocusIndex.current]?.focus();
+    const outside = (event: PointerEvent) => {
+      if (!organizerActionsRef.current?.contains(event.target as Node))
+        setShowOrganizerActions(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [showOrganizerActions]);
   return (
-    <section class="plan" aria-label={t("Trip plan", "แผนการเดินทาง")}>
-      <h2>{t("Plan", "แผนการเดินทาง")}</h2>
+    <section class="plan" aria-label={t("Trip itinerary", "แผนการเดินทาง")}>
+      <h2>{t("Trip itinerary", "แผนการเดินทาง")}</h2>
       {notice && <p role="status">{notice}</p>}
       {(nights.isError || stays.isError || activities.isError) && (
         <p role="status">
@@ -452,14 +467,17 @@ export function Plan({
           )}
         </p>
       )}
-      <nav class="plan-view-toggle" aria-label={t("Plan view", "มุมมองแผน")}>
+      <nav
+        class="plan-view-toggle"
+        aria-label={t("Itinerary view", "มุมมองแผนการเดินทาง")}
+      >
         <Button
           type="button"
           aria-pressed={planView === "daily"}
           appearance={planView === "daily" ? "primary" : "tertiary"}
           onClick={() => setPlanView("daily")}
         >
-          {t("Daily overview", "ภาพรวมรายวัน")}
+          {t("Daily itinerary", "แผนรายวัน")}
         </Button>
         <Button
           type="button"
@@ -471,233 +489,204 @@ export function Plan({
         </Button>
       </nav>
       {planView === "daily" && (
-        <div class="plan-nights">
-          <h3>
-            {t("Where are we staying each night?", "แต่ละคืนพักที่เมืองไหน")}
-          </h3>
+        <div class="plan-nights plan-timeline itinerary-timeline">
           {dates.map((date, dayIndex) => {
             const night = rows.find((x) => x.night_date === date);
             return (
               <article
-                class="plan-night"
+                class="plan-night timeline-entry"
                 key={date}
                 aria-labelledby={`day-${trip.id}-${date}`}
               >
-                <h4 class="plan-day-heading" id={`day-${trip.id}-${date}`}>
-                  <span class="plan-day-number">
-                    {t("Day", "วันที่")} {dayIndex + 1}
-                  </span>
-                  <time dateTime={date}>{formatDateLabel(date, locale)}</time>
-                </h4>
-                {night ? (
-                  <>
-                    <p>{night.city}</p>
-                    {night.transport_mode && (
-                      <p>{tLabel(night.transport_mode, thai)}</p>
-                    )}
-                    {organizer && (
-                      <>
-                        <Button
-                          type="button"
-                          svgOnly
-                          appearance="tertiary"
-                          class="plan-icon-button icon44"
-                          aria-label={t("Edit this night", "แก้ไขคืนนี้")}
-                          title={t("Edit this night", "แก้ไขคืนนี้")}
-                          onClick={() => {
-                            setNightForm(night);
-                            setReplaceRange(false);
-                            setShowNightEditor(true);
-                            requestEditorNavigation("night");
-                          }}
-                        >
-                          <ActionIcon kind="edit" />
-                        </Button>
-                        <Button
-                          type="button"
-                          svgOnly
-                          appearance="tertiary"
-                          class="plan-icon-button icon44 danger"
-                          aria-label={t("Remove", "ลบ")}
-                          title={t("Remove", "ลบ")}
-                          onClick={() => void deleteNight(night)}
-                        >
-                          <ActionIcon kind="remove" />
-                        </Button>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <p>{t("Destination not set", "ยังไม่ได้กำหนดเมือง")}</p>
-                )}
-                {(() => {
-                  const stay = stayForDate(stays.data ?? [], date);
-                  return stay ? (
-                    <div class="plan-daily-stay">
-                      <strong>{stay.name}</strong>
-                      {stay.address && <p>{stay.address}</p>}
-                      {organizer && (
-                        <Button
-                          type="button"
-                          svgOnly
-                          appearance="tertiary"
-                          class="plan-icon-button icon44"
-                          aria-label={t("Edit accommodation", "แก้ไขที่พัก")}
-                          title={t("Edit accommodation", "แก้ไขที่พัก")}
-                          onClick={() => {
-                            setPlanView("accommodation");
-                            setStayForm(stay);
-                            setStayDate(date);
-                            setShowStayEditor(true);
-                            requestEditorNavigation("stay");
-                          }}
-                        >
-                          <ActionIcon kind="edit" />
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <div class="plan-daily-stay">
-                      <p>
-                        {t("Accommodation not set", "ยังไม่ได้กำหนดที่พัก")}
-                      </p>
-                      {organizer && (
-                        <Button
-                          type="button"
-                          svgOnly
-                          appearance="tertiary"
-                          class="plan-icon-button icon44"
-                          aria-label={t(
-                            `Add accommodation for ${date}`,
-                            `เพิ่มที่พักสำหรับ ${date}`,
-                          )}
-                          title={t("Add accommodation", "เพิ่มที่พัก")}
-                          onClick={() => {
-                            setPlanView("accommodation");
-                            setStayForm(null);
-                            setStayDate(date);
-                            setShowStayEditor(true);
-                            requestEditorNavigation("stay");
-                          }}
-                        >
-                          <ActionIcon kind="add" />
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })()}
-                {!activitiesByDate.some(
-                  (activity) =>
-                    activityDestinationDate(activity, destinationTimezone) ===
-                    date,
-                ) && <p>{t("Free day", "วันว่าง")}</p>}
-                {activitiesByDate
-                  .filter(
-                    (a) =>
-                      activityDestinationDate(a, destinationTimezone) === date,
-                  )
-                  .map((activity) => (
-                    <div class="plan-activity" key={activity.id}>
-                      <strong>{activity.title}</strong>
-                      {activity.starts_at && (
-                        <p>
-                          {new Date(activity.starts_at).toLocaleTimeString(
-                            locale,
-                            {
-                              timeZone: destinationTimezone,
-                              timeStyle: "short",
-                            },
-                          )}
-                        </p>
-                      )}
-                      {activity.address && <p>{activity.address}</p>}
-                      {activity.notes && <p>{activity.notes}</p>}
-                      {activity.transport_mode && (
-                        <p>{tLabel(activity.transport_mode, thai)}</p>
-                      )}
-                      {organizer && (
-                        <>
-                          <Button
-                            type="button"
-                            svgOnly
-                            appearance="tertiary"
-                            class="plan-icon-button icon44"
-                            aria-label={t("Edit activity", "แก้ไขกิจกรรม")}
-                            title={t("Edit activity", "แก้ไขกิจกรรม")}
-                            onClick={() => {
-                              setActivityForm(activity);
-                              setActivityDate(
-                                activityDestinationDate(
-                                  activity,
-                                  destinationTimezone,
-                                ) ?? date,
-                              );
-                              setShowActivityEditor(true);
-                              requestEditorNavigation("activity");
-                            }}
-                          >
-                            <ActionIcon kind="edit" />
-                          </Button>
-                          <Button
-                            type="button"
-                            svgOnly
-                            appearance="tertiary"
-                            class="plan-icon-button icon44 danger"
-                            aria-label={t("Remove", "ลบ")}
-                            title={t("Remove", "ลบ")}
-                            onClick={() => void deleteActivity(activity)}
-                          >
-                            <ActionIcon kind="remove" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                {organizer && (
-                  <Button
-                    type="button"
-                    svgOnly
-                    appearance="tertiary"
-                    class="plan-icon-button icon44"
-                    aria-label={t("Add activity", "เพิ่มกิจกรรม")}
-                    title={t("Add activity", "เพิ่มกิจกรรม")}
-                    onClick={() => {
-                      setActivityForm(null);
-                      setActivityDate(date);
-                      setShowActivityEditor(true);
-                      requestEditorNavigation("activity");
-                    }}
+                <span class="timeline-marker" aria-hidden="true">
+                  {dayIndex + 1}
+                </span>
+                <div class="itinerary-day-content">
+                  <h4
+                    class="plan-day-heading plan-day-summary itinerary-card-header"
+                    id={`day-${trip.id}-${date}`}
                   >
-                    <ActionIcon kind="add" />
-                  </Button>
-                )}
+                    <span class="plan-day-number">
+                      {t("Day", "วันที่")} {dayIndex + 1}
+                    </span>
+                    <time dateTime={date}>{formatDateLabel(date, locale)}</time>
+                  </h4>
+                  {night ? (
+                    <>
+                      <p>{night.city}</p>
+                      {night.transport_mode && (
+                        <p>{tLabel(night.transport_mode, thai)}</p>
+                      )}
+                      {organizer && (
+                        <OverflowMenu
+                          label={t(
+                            `Options for ${night.city}`,
+                            `ตัวเลือกสำหรับ ${night.city}`,
+                          )}
+                          name={night.city}
+                          items={[
+                            {
+                              label: t("Edit this night", "แก้ไขคืนนี้"),
+                              onSelect: () => {
+                                setNightForm(night);
+                                setReplaceRange(false);
+                                setShowNightEditor(true);
+                                requestEditorNavigation("night");
+                              },
+                            },
+                            {
+                              label: t("Remove", "ลบ"),
+                              danger: true,
+                              onSelect: () => void deleteNight(night),
+                            },
+                          ]}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <p>{t("Destination not set", "ยังไม่ได้กำหนดเมือง")}</p>
+                  )}
+                  {(() => {
+                    const stay = stayForDate(stays.data ?? [], date);
+                    return stay ? (
+                      <div class="plan-daily-stay plan-hotel-card">
+                        <strong>{stay.name}</strong>
+                        <p>
+                          {formatDateLabel(stay.check_in_date, locale)} –{" "}
+                          {formatDateLabel(stay.check_out_date, locale)}
+                        </p>
+                        {stay.address && (
+                          <>
+                            <p>{stay.address}</p>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stay.address)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {t("Directions", "เส้นทาง")}
+                            </a>
+                          </>
+                        )}
+                        {organizer && (
+                          <OverflowMenu
+                            label={t(
+                              `Options for ${stay.name}`,
+                              `ตัวเลือกสำหรับ ${stay.name}`,
+                            )}
+                            name={stay.name}
+                            items={[
+                              {
+                                label: t("Edit accommodation", "แก้ไขที่พัก"),
+                                onSelect: () => {
+                                  setPlanView("accommodation");
+                                  setStayForm(stay);
+                                  setStayDate(date);
+                                  setShowStayEditor(true);
+                                  requestEditorNavigation("stay");
+                                },
+                              },
+                              {
+                                label: t("Remove", "ลบ"),
+                                danger: true,
+                                onSelect: () => void deleteStay(stay),
+                              },
+                            ]}
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <div class="plan-daily-stay plan-hotel-card">
+                        <p>
+                          {t("Accommodation not set", "ยังไม่ได้กำหนดที่พัก")}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                  {!activitiesByDate.some(
+                    (activity) =>
+                      activityDestinationDate(activity, destinationTimezone) ===
+                      date,
+                  ) && <p>{t("Free day", "วันว่าง")}</p>}
+                  {activitiesByDate
+                    .filter(
+                      (a) =>
+                        activityDestinationDate(a, destinationTimezone) ===
+                        date,
+                    )
+                    .map((activity) => (
+                      <div
+                        class="plan-activity itinerary-card"
+                        key={activity.id}
+                      >
+                        <div class="itinerary-card-header">
+                          {activity.starts_at && (
+                            <time dateTime={activity.starts_at}>
+                              {new Date(activity.starts_at).toLocaleTimeString(
+                                locale,
+                                {
+                                  timeZone: destinationTimezone,
+                                  timeStyle: "short",
+                                },
+                              )}
+                            </time>
+                          )}
+                          <strong>{activity.title}</strong>
+                          {organizer && (
+                            <OverflowMenu
+                              label={t(
+                                `Options for ${activity.title}`,
+                                `ตัวเลือกสำหรับ ${activity.title}`,
+                              )}
+                              name={activity.title}
+                              items={[
+                                {
+                                  label: t("Edit activity", "แก้ไขกิจกรรม"),
+                                  onSelect: () => {
+                                    setActivityForm(activity);
+                                    setActivityDate(
+                                      activityDestinationDate(
+                                        activity,
+                                        destinationTimezone,
+                                      ) ?? date,
+                                    );
+                                    setShowActivityEditor(true);
+                                    requestEditorNavigation("activity");
+                                  },
+                                },
+                                {
+                                  label: t("Remove", "ลบ"),
+                                  danger: true,
+                                  onSelect: () => void deleteActivity(activity),
+                                },
+                              ]}
+                            />
+                          )}
+                        </div>
+                        {activity.address && <p>{activity.address}</p>}
+                        {activity.address && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.address)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {t("Directions", "เส้นทาง")}
+                          </a>
+                        )}
+                        {activity.meeting_info && (
+                          <p>{activity.meeting_info}</p>
+                        )}
+                        {activity.notes && <p>{activity.notes}</p>}
+                        {activity.transport_mode && (
+                          <p>{tLabel(activity.transport_mode, thai)}</p>
+                        )}
+                      </div>
+                    ))}
+                </div>
               </article>
             );
           })}
           {organizer && (
             <>
-              <Button
-                type="button"
-                svgOnly
-                appearance="tertiary"
-                class="plan-icon-button icon44"
-                aria-label={t(
-                  "Add city for a night or range",
-                  "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
-                )}
-                title={t(
-                  "Add city for a night or range",
-                  "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
-                )}
-                aria-expanded={showNightEditor}
-                onClick={() => {
-                  setNightForm(null);
-                  setShowNightEditor(true);
-                  requestEditorNavigation("night");
-                }}
-              >
-                <ActionIcon kind="add" />
-              </Button>
               {showNightEditor && (
                 <form
                   class="plan-form editor-panel"
@@ -806,66 +795,56 @@ export function Plan({
         <div class="plan-stays">
           <h3>{t("Accommodation", "ที่พัก")}</h3>
           {(stays.data ?? []).map((stay) => (
-            <article class="plan-stay" key={stay.id}>
+            <article
+              class="plan-stay plan-hotel-card itinerary-card"
+              key={stay.id}
+            >
               <strong>{stay.name}</strong>
               <p>
-                {stay.check_in_date} — {stay.check_out_date} ·{" "}
+                {formatDateLabel(stay.check_in_date, locale)} –{" "}
+                {formatDateLabel(stay.check_out_date, locale)} ·{" "}
                 {t("check-out", "วันออก")}
               </p>
               {stay.address && <p>{stay.address}</p>}
+              {stay.address && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stay.address)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("Directions", "เส้นทาง")}
+                </a>
+              )}
               {stay.phone && <p>{stay.phone}</p>}
               {organizer && (
-                <>
-                  <Button
-                    type="button"
-                    svgOnly
-                    appearance="tertiary"
-                    class="plan-icon-button icon44"
-                    aria-label={t("Edit accommodation", "แก้ไขที่พัก")}
-                    title={t("Edit accommodation", "แก้ไขที่พัก")}
-                    onClick={() => {
-                      setStayForm(stay);
-                      setStayDate(stay.check_in_date);
-                      setShowStayEditor(true);
-                      requestEditorNavigation("stay");
-                    }}
-                  >
-                    <ActionIcon kind="edit" />
-                  </Button>
-                  <Button
-                    type="button"
-                    svgOnly
-                    appearance="tertiary"
-                    class="plan-icon-button icon44 danger"
-                    aria-label={t("Remove", "ลบ")}
-                    title={t("Remove", "ลบ")}
-                    onClick={() => void deleteStay(stay)}
-                  >
-                    <ActionIcon kind="remove" />
-                  </Button>
-                </>
+                <OverflowMenu
+                  label={t(
+                    `Options for ${stay.name}`,
+                    `ตัวเลือกสำหรับ ${stay.name}`,
+                  )}
+                  name={stay.name}
+                  items={[
+                    {
+                      label: t("Edit accommodation", "แก้ไขที่พัก"),
+                      onSelect: () => {
+                        setStayForm(stay);
+                        setStayDate(stay.check_in_date);
+                        setShowStayEditor(true);
+                        requestEditorNavigation("stay");
+                      },
+                    },
+                    {
+                      label: t("Remove", "ลบ"),
+                      danger: true,
+                      onSelect: () => void deleteStay(stay),
+                    },
+                  ]}
+                />
               )}
             </article>
           ))}
           {organizer && (
             <>
-              <Button
-                type="button"
-                svgOnly
-                appearance="tertiary"
-                class="plan-icon-button icon44"
-                aria-label={t("Add accommodation", "เพิ่มที่พัก")}
-                title={t("Add accommodation", "เพิ่มที่พัก")}
-                aria-expanded={showStayEditor}
-                onClick={() => {
-                  setStayForm(null);
-                  setStayDate(trip.start_date);
-                  setShowStayEditor(true);
-                  requestEditorNavigation("stay");
-                }}
-              >
-                <ActionIcon kind="add" />
-              </Button>
               {showStayEditor && (
                 <form
                   class="plan-form editor-panel"
@@ -966,6 +945,146 @@ export function Plan({
               )}
             </>
           )}
+        </div>
+      )}
+      {organizer && (
+        <div class="plan-organizer-actions" ref={organizerActionsRef}>
+          {showOrganizerActions && (
+            <div
+              class="overflow-panel"
+              role="menu"
+              tabIndex={-1}
+              aria-label={t("Itinerary actions", "การจัดการแผนการเดินทาง")}
+              onKeyDown={(event) => {
+                const items = Array.from(
+                  organizerActionsRef.current?.querySelectorAll<HTMLButtonElement>(
+                    "[role='menuitem']",
+                  ) ?? [],
+                );
+                const index = items.indexOf(
+                  document.activeElement as HTMLButtonElement,
+                );
+                if (event.key === "Escape") {
+                  setShowOrganizerActions(false);
+                  requestAnimationFrame(() =>
+                    (
+                      organizerActionsRef.current?.querySelector(
+                        ".itinerary-fab",
+                      ) as HTMLButtonElement | null
+                    )?.focus(),
+                  );
+                }
+                if (
+                  !showOrganizerActions &&
+                  (event.key === "ArrowDown" || event.key === "ArrowUp")
+                ) {
+                  event.preventDefault();
+                  organizerFocusIndex.current = event.key === "ArrowUp" ? 3 : 0;
+                  setShowOrganizerActions(true);
+                }
+                if (event.key === "Tab") setShowOrganizerActions(false);
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  if (items.length && index >= 0) {
+                    event.preventDefault();
+                    items[
+                      (index +
+                        (event.key === "ArrowDown" ? 1 : items.length - 1)) %
+                        items.length
+                    ]?.focus();
+                  }
+                }
+                if (event.key === "Home") {
+                  event.preventDefault();
+                  items[0]?.focus();
+                }
+                if (event.key === "End") {
+                  event.preventDefault();
+                  items.at(-1)?.focus();
+                }
+              }}
+            >
+              <Button
+                type="button"
+                appearance="tertiary"
+                role="menuitem"
+                onClick={() => {
+                  setActivityForm(null);
+                  setActivityDate(trip.start_date);
+                  setShowActivityEditor(true);
+                  requestEditorNavigation("activity");
+                  setShowOrganizerActions(false);
+                }}
+              >
+                {t("Add activity", "เพิ่มกิจกรรม")}
+              </Button>
+              <Button
+                type="button"
+                appearance="tertiary"
+                role="menuitem"
+                onClick={() => {
+                  setPlanView("daily");
+                  setNightForm(null);
+                  setShowNightEditor(true);
+                  requestEditorNavigation("night");
+                  setShowOrganizerActions(false);
+                }}
+              >
+                {t(
+                  "Add city for a night or range",
+                  "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
+                )}
+              </Button>
+              <Button
+                type="button"
+                appearance="tertiary"
+                role="menuitem"
+                onClick={() => {
+                  setPlanView("accommodation");
+                  setShowOrganizerActions(false);
+                }}
+              >
+                {t("Accommodation management", "จัดการที่พัก")}
+              </Button>
+              <Button
+                type="button"
+                appearance="tertiary"
+                role="menuitem"
+                onClick={() => {
+                  setPlanView("accommodation");
+                  setStayForm(null);
+                  setStayDate(trip.start_date);
+                  setShowStayEditor(true);
+                  requestEditorNavigation("stay");
+                  setShowOrganizerActions(false);
+                }}
+              >
+                {t("Add accommodation", "เพิ่มที่พัก")}
+              </Button>
+            </div>
+          )}
+          <Button
+            type="button"
+            svgOnly
+            appearance="primary"
+            class="itinerary-fab"
+            aria-label={t("Edit itinerary", "แก้ไขแผนการเดินทาง")}
+            title={t("Edit itinerary", "แก้ไขแผนการเดินทาง")}
+            aria-expanded={showOrganizerActions}
+            aria-haspopup="menu"
+            onKeyDown={(event) => {
+              if (
+                !showOrganizerActions &&
+                (event.key === "ArrowDown" || event.key === "ArrowUp")
+              ) {
+                event.preventDefault();
+                organizerFocusIndex.current = event.key === "ArrowUp" ? 3 : 0;
+                setShowOrganizerActions(true);
+              }
+            }}
+            onClick={() => setShowOrganizerActions(!showOrganizerActions)}
+          >
+            <ActionIcon kind="edit" />
+          </Button>
         </div>
       )}
       {organizer && showActivityEditor && (

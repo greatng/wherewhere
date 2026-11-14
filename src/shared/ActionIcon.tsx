@@ -4,7 +4,7 @@ export function ActionIcon({
   kind,
   class: className,
 }: {
-  kind: "add" | "edit" | "remove" | "save" | "cancel";
+  kind: "add" | "edit" | "remove" | "save" | "cancel" | "ellipsis";
   class?: string;
 }) {
   const common: JSX.SVGAttributes<SVGSVGElement> = {
@@ -47,6 +47,16 @@ export function ActionIcon({
     return (
       <svg {...common}>
         <path d="m6 6 12 12M18 6 6 18" />
+      </svg>
+    );
+  }
+
+  if (kind === "ellipsis") {
+    return (
+      <svg {...common}>
+        <circle cx="5" cy="12" r="1" />
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="19" cy="12" r="1" />
       </svg>
     );
   }

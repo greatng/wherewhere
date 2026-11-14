@@ -181,7 +181,8 @@ export function App() {
       pages((from, to) =>
         db
           .from("trip_invites")
-          .select("id,trip_id,expires_at,uses_count,max_uses,revoked_at")
+          .select("id,trip_id,expires_at,uses_count,max_uses,revoked_at,deleted_at")
+          .is("deleted_at", null)
           .order("id")
           .range(from, to),
       ),
@@ -737,19 +738,43 @@ export function App() {
                                 .map((i) => (
                                   <p key={i.id}>
                                     {i.uses_count}/{i.max_uses} · {i.expires_at}
-                                    <Button
-                                      disabled={busy || !!i.revoked_at}
-                                      onClick={() =>
-                                        void run(async () => {
-                                          await rpc("revoke_invite", {
-                                            p_invite_id: i.id,
+                                    {i.revoked_at ? (
+                                      <Button
+                                        disabled={busy}
+                                        onClick={() => {
+                                          if (
+                                            !window.confirm(
+                                              t(
+                                                "Delete this revoked invitation? Its history will be retained.",
+                                                "ต้องการลบคำเชิญที่ยกเลิกแล้วหรือไม่ ประวัติจะยังคงอยู่",
+                                              ),
+                                            )
+                                          )
+                                            return;
+                                          void run(async () => {
+                                            await rpc("delete_revoked_invite", {
+                                              p_invite_id: i.id,
+                                            });
                                           });
-                                          setQr("");
-                                        })
-                                      }
-                                    >
-                                      {t("Revoke", "ยกเลิก")}
-                                    </Button>
+                                        }}
+                                      >
+                                        {t("Delete revoked invitation", "ลบคำเชิญที่ยกเลิกแล้ว")}
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void run(async () => {
+                                            await rpc("revoke_invite", {
+                                              p_invite_id: i.id,
+                                            });
+                                            setQr("");
+                                          })
+                                        }
+                                      >
+                                        {t("Revoke", "ยกเลิก")}
+                                      </Button>
+                                    )}
                                   </p>
                                 ))}
                               <Button

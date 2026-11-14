@@ -57,7 +57,12 @@ type FixtureRpcArgs = {
 
 async function installFixture(
   page: import("@playwright/test").Page,
-  options: { guest?: boolean; participant?: boolean; daily?: boolean } = {},
+  options: {
+    guest?: boolean;
+    participant?: boolean;
+    daily?: boolean;
+    invites?: Record<string, unknown>[];
+  } = {},
 ) {
   const fixtureUid = options.participant ? bob : uid;
   const trip = {
@@ -80,6 +85,7 @@ async function installFixture(
     },
   ];
   const trips = [trip];
+  let invites = options.invites ?? [];
   const members = [
     {
       id: alice,
@@ -267,7 +273,8 @@ async function installFixture(
     let data: unknown[] = [];
     if (table === "trips") data = trips;
     if (table === "trip_members") data = members;
-    if (table === "trip_join_requests" || table === "trip_invites") data = [];
+    if (table === "trip_join_requests") data = [];
+    if (table === "trip_invites") data = invites;
     if (table === "itinerary_items") data = itinerary;
     if (table === "nightly_destinations") data = nights;
     if (table === "stays") data = stays;
@@ -417,6 +424,14 @@ async function installFixture(
       trip.timezone = String(args.p_timezone);
     } else if (fn === "create_invite") {
       result = [{ token: "a".repeat(64) }];
+    } else if (fn === "revoke_invite") {
+      invites = invites.map((invite) =>
+        invite.id === args.p_invite_id
+          ? { ...invite, revoked_at: new Date().toISOString() }
+          : invite,
+      );
+    } else if (fn === "delete_revoked_invite") {
+      invites = invites.filter((invite) => invite.id !== args.p_invite_id);
     } else if (fn === "delete_trip") {
       trips.splice(0, trips.length);
     } else if (fn === "create_trip") {
@@ -1109,6 +1124,72 @@ test("invitation QR reveals its panel and stays in the viewport", async ({
   });
   await page.getByRole("button", { name: "Close" }).click({ force: true });
   await expect(qrPanel).toHaveCount(0);
+});
+
+test("organizer confirms deletion of revoked invitations while active invitations remain revocable", async ({
+  page,
+}) => {
+  const fixtureState = await installFixture(page, {
+    invites: [
+      {
+        id: "invite-active",
+        trip_id: tripId,
+        expires_at: "2026-11-20T00:00:00Z",
+        uses_count: 0,
+        max_uses: 8,
+        revoked_at: null,
+        deleted_at: null,
+      },
+      {
+        id: "invite-revoked",
+        trip_id: tripId,
+        expires_at: "2026-11-20T00:00:00Z",
+        uses_count: 1,
+        max_uses: 8,
+        revoked_at: "2026-11-13T00:00:00Z",
+        deleted_at: null,
+      },
+    ],
+  });
+  await page.goto("/");
+  await openTrip(page);
+  await page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Trip" })
+    .click();
+  await page.getByText("Trip settings and access", { exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Revoke", exact: true }),
+  ).toBeVisible();
+  const deleteButton = page.getByRole("button", {
+    name: "Delete revoked invitation",
+  });
+  await expect(deleteButton).toBeVisible();
+
+  let dismiss = true;
+  page.on("dialog", async (dialog) => {
+    await (dismiss ? dialog.dismiss() : dialog.accept());
+  });
+  await deleteButton.click();
+  expect(
+    fixtureState
+      .getRpcCalls()
+      .filter((call) => call.fn === "delete_revoked_invite"),
+  ).toHaveLength(0);
+  dismiss = false;
+  await deleteButton.click();
+  await expect
+    .poll(
+      () =>
+        fixtureState
+          .getRpcCalls()
+          .filter((call) => call.fn === "delete_revoked_invite").length,
+    )
+    .toBe(1);
+  await expect(deleteButton).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Revoke", exact: true }),
+  ).toBeVisible();
 });
 
 test("fresh invitation join validates before anonymous sign in and retries with the same guest identity", async ({

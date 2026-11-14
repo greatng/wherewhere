@@ -219,3 +219,19 @@ As an invited traveler, I can validate an invitation, create or reuse my guest s
 
 
 US28 verification: the advanced disclosure preserves destination-time editing, and desktop/mobile QR generation tests verify panel focus and scrolling, including repeated generation. US29 verification: focused tests cover new-device validation → anonymous session → pending redemption, identity-preserving retry, missing gateway guidance and sanitized configuration errors. Eight focused browser cases and eleven invite/session/error tests pass; lint/build pass. Live checks verify gateway availability and anonymous signup; real-invitation acceptance on the other mobile remains pending.
+
+
+## US31 — delete revoked invitations
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/31
+
+As an organizer, I can remove revoked invitations from the visible invitation list after confirming, while active invitations retain their Revoke action. AC1 shows a confirmation before deletion and cancellation makes no RPC call. AC2 the database allows only organizers to delete revoked invitations and rejects active invitations. AC3 deletion is a soft delete that hides the row from authorized reads while preserving invitation foreign keys and join-request history. AC4 repeated deletion is safe and existing invitation creation/revocation still works.
+
+US31 verification: AC1 and AC4 pass the desktop/mobile browser flow: dismissing confirmation makes zero delete RPC calls; accepting calls once, hides the revoked invitation, and keeps the active Revoke action. AC2–AC4 pass the PGlite migration test for anonymous EXECUTE denial, organizer authorization, active-invite rejection, idempotence, RLS visibility, and retained join-request FK history. Focused TypeScript/build and migration tests pass. The migration was applied to hosted project bsuzmybuskeadtofvjbz. Read-only verification confirms the column, organizer/non-deleted RLS policy, anonymous EXECUTE denial and authenticated RPC access. No existing invitation was deleted during verification. The security advisor flags the authenticated SECURITY DEFINER RPC, as expected for this existing authorization pattern; the RPC enforces organizer access internally.
+
+
+## US30 — reliable menu focus
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/30
+
+See [menu-focus.md](stories/menu-focus.md) for the story, acceptance criteria and deterministic red/green regression. Escape now restores trigger focus without a pending opening effect stealing it.

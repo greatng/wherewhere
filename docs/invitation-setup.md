@@ -43,3 +43,8 @@ Then create a fresh invitation QR, scan it from another device/browser, enter a 
 The user approved production deployment with public validation and in-function redemption authentication. Version 5 is deployed with platform JWT verification disabled. After the owner saved the required secrets, live OPTIONS returned HTTP 200 with the exact allowed origin, and a synthetic invalid token returned HTTP 400 `invalid_invite`. A direct anonymous Auth signup also returned HTTP 200 with an anonymous user, confirming guest sign-in works. This created one diagnostic Auth user without trip membership; no actual invitation was redeemed or traveler data changed. The public Auth settings response had reported anonymous sign-in disabled, so that response alone was not a reliable readiness check.
 
 Eight focused desktop/mobile browser cases pass using synthetic fixtures, including fresh guest joining, retry identity preservation, missing-gateway guidance and repeated QR focus/scroll. A real invitation on the owner’s other phone still needs confirmation; these checks do not claim physical-device acceptance.
+
+
+## Remove revoked invitations
+
+In Trip → Trip settings and access, organizers can choose **Delete revoked invitation** and confirm removal. Active invitations must first be revoked. Deletion hides the invitation while retaining history and existing memberships. The `20261114140713_delete_revoked_trip_invites.sql` migration adds the required column, read policy and organizer-only RPC; apply it before deploying the updated frontend on another project. It has already been applied to bsuzmybuskeadtofvjbz. No Docker is needed: use the Dashboard SQL Editor or your normal migration deployment.

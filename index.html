@@ -2,6 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        let theme = null;
+        try {
+          const stored = localStorage.getItem("paikan-theme");
+          if (stored === "light" || stored === "dark") theme = stored;
+        } catch {}
+        theme ??= matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#174d40" />
     <meta name="referrer" content="no-referrer" />

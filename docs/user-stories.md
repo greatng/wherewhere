@@ -125,3 +125,10 @@ US14–US15 verification: 48 unit/component/database tests pass, including desti
 GitHub issue: https://github.com/greatng/wherewhere/issues/16
 
 Remove repeated timezone names from the daily workspace and activity rows. Keep destination conversion internally and its organizer setting. All Plan actions use compact SVG icons with bilingual accessible names, titles, visible keyboard focus and touch targets; navigation tab labels remain readable text.
+
+
+## US17 — persistent light and dark appearance
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/17
+
+As a traveler I can switch appearance using an accessible header control, retain my choice across reloads and follow system appearance before choosing. Dark surfaces preserve contrast, focus, Senior mode and QR readability. The official 21st skills are installed and design context initialized; catalog retrieval is blocked until 21st authentication is configured, so this change reuses Preact primitives and does not claim downloaded components.

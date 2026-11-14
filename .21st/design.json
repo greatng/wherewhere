@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "project": {
+    "name": "paikan",
+    "productType": "group travel PWA",
+    "stack": [
+      "preact",
+      "typescript",
+      "tailwind-v4",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "src/style.css"
+    ],
+    "components": [
+      "src/shared/ActionIcon.tsx",
+      "src/shared/ThemeToggle.tsx"
+    ],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "light-and-dark",
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "compact"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "Destination-time behavior stays unchanged",
+      "SVG actions retain accessible names and 44px touch targets",
+      "Senior mode stays readable",
+      "QR codes retain white backgrounds"
+    ],
+    "avoid": [
+      "Nested cards",
+      "Decorative glass effects",
+      "React-only dependencies in Preact"
+    ]
+  },
+  "decisions": [
+    "Keep ivory/moss light palette; use charcoal/moss dark palette.",
+    "Follow system appearance until a user selects light or dark; persist explicit selection.",
+    "Use official 21st skill workflow; catalog search currently requires authentication, so no catalog component is claimed."
+  ],
+  "evidence": [
+    {
+      "fact": "project.stack:tailwind-v4",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-11-14T03:14:39.525Z"
+}

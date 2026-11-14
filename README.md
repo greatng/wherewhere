@@ -79,3 +79,10 @@ Manual acceptance before release: use separate organizer and traveler browser pr
 
 
 For emails that currently link to a development domain, follow the [email code and production URL setup](docs/email-setup.md). The app already verifies six-digit codes; the hosted Supabase email templates determine whether an email contains a code or a link.
+
+
+## Appearance and 21st design workflow
+
+Use the sun/moon header control to switch light/dark appearance. Before an explicit choice, PaiKan follows system appearance; a choice is stored under `paikan-theme` on the device. QR codes retain a white background in both modes.
+
+The official `21st-dev/skill` pack was installed for the coding workspace, and `.21st/` records this project's Preact design constraints. CLI design initialization and static review ran successfully. Catalog search currently returns `Not signed in`; component retrieval requires an operator to run `npx @21st-dev/cli login` in the workspace. No catalog component or React-only dependency was added. The shipped toggle reuses native Preact and SVG primitives.

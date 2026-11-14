@@ -770,3 +770,159 @@ button.plan-icon-button {
   white-space: nowrap;
   overflow-wrap: normal;
 }
+
+/* Dark theme: muted charcoal, warm paper surfaces, and moss actions. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #e8e7df;
+  background: #1d211d;
+  --ink: #e8e7df;
+  --muted: #b0b3a8;
+  --paper: #282d27;
+  --moss: #718565;
+  --moss-dark: #819574;
+  --terra: #cf8064;
+  --line: #454a40;
+  --page: #1d211d;
+  --surface-raised: #30362e;
+  --surface-soft: #30372f;
+  --surface-inset: #222720;
+  --field: #222720;
+  --field-border: #62685b;
+  --alert: #f0a293;
+  --warning-text: #e8c7a0;
+}
+
+:root[data-theme="dark"] body {
+  color: var(--ink);
+  background: var(--page);
+}
+:root[data-theme="dark"] header {
+  background: rgb(29 33 29 / 94%);
+}
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] select {
+  color: var(--ink);
+  background: var(--field);
+  border-color: var(--field-border);
+}
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+  color: #999d91;
+  opacity: 1;
+}
+:root[data-theme="dark"] a {
+  color: #b3c5a4;
+}
+:root[data-theme="dark"] [role="alert"] {
+  color: var(--alert);
+}
+:root[data-theme="dark"] .activity-tabs {
+  background: var(--page);
+}
+:root[data-theme="dark"] .next-stop,
+:root[data-theme="dark"] .notice {
+  background: #354034;
+}
+:root[data-theme="dark"] .tonight-card {
+  background: #38352c;
+}
+:root[data-theme="dark"] .pending {
+  background: #40352a;
+  color: var(--warning-text);
+}
+:root[data-theme="dark"] .help-card,
+:root[data-theme="dark"] .senior .help-card {
+  background: #3b302a;
+  border-color: #755144;
+}
+:root[data-theme="dark"] .danger-zone {
+  background: #322724;
+  border-color: #805345;
+}
+:root[data-theme="dark"] .danger-zone summary,
+:root[data-theme="dark"] .danger-button {
+  color: #f4d8cf;
+}
+:root[data-theme="dark"] .danger-button {
+  background: #863f34;
+}
+:root[data-theme="dark"] .plan-form,
+:root[data-theme="dark"] .expense-entry,
+:root[data-theme="dark"] .stop-editor,
+:root[data-theme="dark"] .plan-nights,
+:root[data-theme="dark"] .plan-stays {
+  background: var(--surface-inset);
+}
+:root[data-theme="dark"] .plan-night h4 {
+  color: #b3c5a4;
+}
+:root[data-theme="dark"] .plan-icon-button:hover:not(:disabled) {
+  background: #3a4037;
+  color: var(--ink);
+}
+:root[data-theme="dark"] .plan-icon-button.danger:hover:not(:disabled) {
+  background: #482f2b;
+  color: #f0a293;
+}
+:root[data-theme="dark"] .checkin {
+  background: #b66a50;
+}
+:root[data-theme="dark"] .checkin:hover:not(:disabled) {
+  background: #c47a60;
+}
+:root[data-theme="dark"] button:focus-visible,
+:root[data-theme="dark"] a:focus-visible,
+:root[data-theme="dark"] input:focus-visible,
+:root[data-theme="dark"] textarea:focus-visible,
+:root[data-theme="dark"] select:focus-visible {
+  outline-color: #d79a7e;
+}
+:root[data-theme="dark"] img[alt*="QR"] {
+  background: #fff;
+  padding: 0.55rem;
+  border-radius: 8px;
+}
+
+/* Header theme control stays compact alongside the language control. */
+.theme-toggle,
+button.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.theme-toggle svg {
+  width: 21px;
+  height: 21px;
+}
+.theme-toggle:hover:not(:disabled) {
+  background: var(--surface-raised, #eeeae1);
+  color: var(--ink);
+  transform: none;
+}
+:root[data-theme="dark"] .theme-toggle {
+  background: var(--surface-raised);
+}
+@media (max-width: 560px) {
+  header {
+    gap: 0.35rem;
+  }
+}
+.theme-toggle svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

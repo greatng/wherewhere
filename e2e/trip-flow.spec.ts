@@ -713,9 +713,9 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await expect(createdActivityEditor.getByLabel("Day")).toHaveValue(
     "2026-11-02",
   );
-  await expect(createdActivityEditor.getByLabel("Destination time")).toHaveValue(
-    "09:30",
-  );
+  await expect(
+    createdActivityEditor.getByLabel("Destination time"),
+  ).toHaveValue("09:30");
 });
 
 test.describe("Plan editor regressions", () => {
@@ -880,9 +880,9 @@ test.describe("Browser timezone differs from trip timezone", () => {
     await stop.getByRole("button", { name: "Edit stop" }).click();
     await expectInViewport(stopEditor.getByLabel("Place or activity"));
     await expect(stopEditor.getByLabel("Day")).toHaveValue("2026-11-02");
-    await expect(stopEditor.getByLabel("Destination time (optional)")).toHaveValue(
-      "09:30",
-    );
+    await expect(
+      stopEditor.getByLabel("Destination time (optional)"),
+    ).toHaveValue("09:30");
     await stopEditor.getByLabel("Destination time (optional)").fill("10:00");
     await stopEditor.getByRole("button", { name: "Save stop" }).click();
     await expect
@@ -912,7 +912,9 @@ test.describe("Browser timezone differs from trip timezone", () => {
     const legacyEditor = plan.locator(".plan-activity-editor");
     await expectInViewport(legacyEditor.getByLabel("Day"));
     await expect(legacyEditor.getByLabel("Day")).toHaveValue("2026-11-02");
-    await expect(legacyEditor.getByLabel("Destination time")).toHaveValue("09:00");
+    await expect(legacyEditor.getByLabel("Destination time")).toHaveValue(
+      "09:00",
+    );
     await legacyEditor.getByRole("button", { name: "Save activity" }).click();
     await expect
       .poll(
@@ -995,7 +997,12 @@ test("trip creation carries its date range; archive and restore work; wrong dele
   await page.getByLabel("Destination timezone (IANA)").fill("Asia/Tokyo");
   await page.getByRole("button", { name: "Save timezone" }).click();
   await expect
-    .poll(() => fixtureState.getRpcCalls().find((call) => call.fn === "set_trip_timezone")?.args)
+    .poll(
+      () =>
+        fixtureState
+          .getRpcCalls()
+          .find((call) => call.fn === "set_trip_timezone")?.args,
+    )
     .toMatchObject({ p_trip_id: tripId, p_timezone: "Asia/Tokyo" });
   await page
     .getByRole("navigation", { name: "Trip sections" })
@@ -1003,10 +1010,14 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     .click();
   const plan = page.getByRole("region", { name: "Trip plan" });
   await expect(plan).not.toContainText("Asia/Bangkok");
-  const watArun = plan.locator(".plan-activity").filter({ hasText: "Wat Arun" });
+  const watArun = plan
+    .locator(".plan-activity")
+    .filter({ hasText: "Wat Arun" });
   await expect(watArun).toContainText(/11:00/);
   await watArun.getByRole("button", { name: "Edit activity" }).click();
-  await expect(plan.locator(".plan-activity-editor").getByLabel("Destination time")).toHaveValue("11:00");
+  await expect(
+    plan.locator(".plan-activity-editor").getByLabel("Destination time"),
+  ).toHaveValue("11:00");
   await page
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Trip" })
@@ -1193,9 +1204,10 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
     }));
-    expect(documentWidth, `${tab} tab should not scroll horizontally`).toBeLessThanOrEqual(
-      viewportWidth,
-    );
+    expect(
+      documentWidth,
+      `${tab} tab should not scroll horizontally`,
+    ).toBeLessThanOrEqual(viewportWidth);
     await activity.screenshot({
       path: `artifacts/${testInfo.project.name}-${tab}-fixture-preview.png`,
       style: "header, .activity-tabs { position: static !important; }",
@@ -1244,4 +1256,90 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
     page.getByRole("link", { name: "Call: +66 81 234 5678" }),
   ).toBeVisible();
   await screenshot("trip");
+});
+
+test("theme toggle persists and system preference updates the default", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await installFixture(page);
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(
+    page.getByRole("button", { name: "Switch to dark mode" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await page.evaluate(() => localStorage.getItem("paikan-theme"))).toBe(
+    "dark",
+  );
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(
+    page.getByRole("button", { name: "Switch to light mode" }),
+  ).toBeVisible();
+
+  // A fresh browser context has no preference override and follows the OS live.
+  const context = await page
+    .context()
+    .browser()!
+    .newContext({ colorScheme: "light" });
+  const systemPage = await context.newPage();
+  await installFixture(systemPage);
+  await systemPage.goto("/");
+  await expect(systemPage.locator("html")).toHaveAttribute(
+    "data-theme",
+    "light",
+  );
+  await systemPage.emulateMedia({ colorScheme: "dark" });
+  await expect(systemPage.locator("html")).toHaveAttribute(
+    "data-theme",
+    "dark",
+  );
+  expect(
+    await systemPage.evaluate(() => localStorage.getItem("paikan-theme")),
+  ).toBeNull();
+  await context.close();
+});
+
+test("captures dark trip tabs and light preview without horizontal overflow", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await installFixture(page);
+  await page.goto("/");
+  await openTrip(page);
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const activity = page.locator(".activity");
+  const capture = async (tab: string, theme: "dark" | "light") => {
+    const { viewportWidth, documentWidth } = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(
+      documentWidth,
+      `${theme} ${tab} should not scroll horizontally`,
+    ).toBeLessThanOrEqual(viewportWidth);
+    await activity.screenshot({
+      path: `artifacts/${testInfo.project.name}-${theme}-${tab}-fixture-preview.png`,
+      style: "header, .activity-tabs { position: static !important; }",
+    });
+  };
+  await capture("today", "dark");
+  for (const tab of ["Plan", "Expenses", "Trip"] as const) {
+    await page
+      .getByRole("navigation", { name: "Trip sections" })
+      .getByRole("button", { name: tab, exact: true })
+      .click();
+    await capture(tab.toLowerCase(), "dark");
+  }
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Today" })
+    .click();
+  await capture("today", "light");
 });

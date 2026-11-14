@@ -14,6 +14,7 @@ import { QueryClient, useQuery } from "@tanstack/preact-query";
 import QRCode from "qrcode";
 import { supabase as db } from "../../shared/supabase/client";
 import { TripActivity } from "./TripActivity";
+import { ThemeToggle } from "../../shared/ThemeToggle";
 import {
   cacheTripData,
   clearAllLocalData,
@@ -218,6 +219,7 @@ export function App() {
           PaiKan
         </a>
         <button
+          type="button"
           onClick={() => {
             thai.value = !thai.value;
             document.documentElement.lang = thai.value ? "th" : "en";
@@ -225,6 +227,7 @@ export function App() {
         >
           ไทย / English
         </button>
+        <ThemeToggle thai={thai.value} />
       </header>
       <main>
         {uid && (

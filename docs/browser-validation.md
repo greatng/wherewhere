@@ -34,6 +34,22 @@ These screenshots are fixture-backed previews. They show the UI at desktop and m
 
 ![Mobile Trip fixture preview](../artifacts/mobile-chromium-trip-fixture-preview.png)
 
+## Dark and light themes
+
+The theme checks verify that the selected light or dark mode is applied before the page renders, persists in `paikan-theme` after reload, and that a browser with no saved preference follows system light/dark changes live. The fixture uses a fresh context for system preference checks, so it does not clear or replace the primary context's saved theme. Both viewport projects capture Today, Plan, Expenses, and Trip in dark mode, plus a light Today preview. Each capture checks the document width against the viewport to catch horizontal overflow.
+
+![Desktop dark Today preview](../artifacts/desktop-chromium-dark-today-fixture-preview.png)
+
+![Mobile dark Today preview](../artifacts/mobile-chromium-dark-today-fixture-preview.png)
+
+![Desktop light Today preview](../artifacts/desktop-chromium-light-today-fixture-preview.png)
+
+![Mobile light Today preview](../artifacts/mobile-chromium-light-today-fixture-preview.png)
+
+The matching dark Plan, Expenses, and Trip previews use the same `desktop-chromium-dark-<tab>-fixture-preview.png` and `mobile-chromium-dark-<tab>-fixture-preview.png` naming pattern in `artifacts/`.
+
+The focused theme and preview tests passed in desktop and mobile Chromium, and the trip Plan itinerary/accommodation editor smoke flow passed in both projects. The previews were visually checked for readable text against the page and card backgrounds; viewport-width assertions passed for every captured tab.
+
 ## Senior view
 
 ![Desktop Senior view fixture preview](../artifacts/desktop-chromium-senior-fixture-preview.png)

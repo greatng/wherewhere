@@ -218,7 +218,7 @@ export function App() {
     <>
       <header>
         <a href="#/trips" onClick={() => selectTrip(null)}>
-          PaiKan
+          Roam
         </a>
         <Button
           type="button"
@@ -323,7 +323,7 @@ export function App() {
             <h2>{t("Join a trip", "เข้าร่วมทริป")}</h2>
             <p>
               {t(
-                "Install PaiKan first if you want to use it from your Home Screen. Open this invitation inside the installed app. Browser and installed app sessions may differ.",
+                "Install Roam first if you want to use it from your Home Screen. Open this invitation inside the installed app. Browser and installed app sessions may differ.",
                 "ติดตั้งแอปก่อน แล้วเปิดคำเชิญในแอปที่ติดตั้ง บัญชีในเบราว์เซอร์อาจต่างจากแอป",
               )}
             </p>

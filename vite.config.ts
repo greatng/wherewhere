@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: "prompt",
       injectRegister: "auto",
       manifest: {
-        name: "PaiKan",
-        short_name: "PaiKan",
+        name: "Roam",
+        short_name: "Roam",
         description: "Every day, together.",
         start_url: "/",
         scope: "/",

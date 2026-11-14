@@ -445,7 +445,7 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
   const fixtureState = await installFixture(page);
   await page.goto("/");
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "PaiKan" })).toBeFocused();
+  await expect(page.getByRole("link", { name: "Roam" })).toBeFocused();
   await openTrip(page);
   await expect(
     page

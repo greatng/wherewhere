@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": {
-    "name": "paikan",
+    "name": "roam",
     "productType": "group travel PWA",
     "stack": [
       "preact",

@@ -1,12 +1,12 @@
 # Supabase email code setup
 
-PaiKan signs users in with a six-digit email code. The app calls Supabase `signInWithOtp` and `verifyOtp`; guest email upgrades use `updateUser({ email })` and verify the email change on the same guest identity. The Supabase email messages must expose the token itself so users can enter it in the app.
+Roam signs users in with a six-digit email code. The app calls Supabase `signInWithOtp` and `verifyOtp`; guest email upgrades use `updateUser({ email })` and verify the email change on the same guest identity. The Supabase email messages must expose the token itself so users can enter it in the app.
 
 ## Auth URL configuration
 
 In Supabase Dashboard, open **Authentication → URL Configuration**:
 
-1. Set **Site URL** to the deployed PaiKan origin, including its scheme and host (for example, `https://your-deployed-host`). Use the actual deployment origin; do not leave `http://localhost:5173` as the production Site URL.
+1. Set **Site URL** to the deployed Roam origin, including its scheme and host (for example, `https://your-deployed-host`). Use the actual deployment origin; do not leave `http://localhost:5173` as the production Site URL.
 2. Add the same deployed origin to **Redirect URLs**. Add any separately used preview or local origins explicitly when needed. Do not use a broad wildcard for production.
 
 The current code verification flow does not depend on an email redirect link. These URL settings still establish the correct project default and support other Supabase auth redirects.
@@ -19,7 +19,7 @@ Open **Authentication → Email Templates** and set the body of each template be
 - **Magic Link** — sign-in when Supabase sends this template
 - **Change Email Address** — upgrading a guest identity with an email address
 
-Paste the corresponding body from [`supabase/templates`](../supabase/templates). Each message contains `{{ .Token }}` and no confirmation URL. Keep the token placeholder intact. A link template using `{{ .ConfirmationURL }}` will not match PaiKan's code-entry screen.
+Paste the corresponding body from [`supabase/templates`](../supabase/templates). Each message contains `{{ .Token }}` and no confirmation URL. Keep the token placeholder intact. A link template using `{{ .ConfirmationURL }}` will not match Roam's code-entry screen.
 
 ## OTP and SMTP settings
 

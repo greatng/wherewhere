@@ -1,12 +1,12 @@
-# PaiKan — product improvement stories
+# Roam — product improvement stories
 
-Scope: implementation following the product review of commit 9d8eb55. PaiKan (ไปกัน) means “Let's go together.” Keep Thai/English, quiet ivory/moss styling and accessible controls. Preserve existing login storage, IndexedDB and trip history through the rename. No live hosted data is modified as part of development.
+Scope: implementation following the product review of commit 9d8eb55. The app is now named Roam. Keep Thai/English, quiet ivory/moss styling and accessible controls. Preserve existing login storage, IndexedDB and trip history through the rename. No live hosted data is modified as part of development.
 
 ## US1 — recognizable identity
 
 GitHub issue: https://github.com/greatng/wherewhere/issues/1
 
-As a traveler, I see PaiKan in the app, browser title, install manifest and icon, so I recognize the same service on return. Existing sessions and local pending operations survive the name change; internal legacy storage keys are retained deliberately.
+As a traveler, I see Roam in the app, browser title, install manifest and icon, so I recognize the same service on return. Existing sessions and local pending operations survive the name change; internal legacy storage keys are retained deliberately.
 
 ## US2 — one trip at a time
 
@@ -80,11 +80,11 @@ As a traveler, I enter an activity date and local time without a timezone select
 Issue #10 was opened before implementation and updated when the product owner clarified local-time behavior. No hosted database was modified.
 
 
-## US11 — email codes that keep travelers in PaiKan
+## US11 — email codes that keep travelers in Roam
 
 GitHub issue: https://github.com/greatng/wherewhere/issues/11
 
-As a traveler, I receive a six-digit email code and enter it in PaiKan without following a development-domain link. Supabase email templates must display the token and its Site URL must point to the deployed app. Preserve guest identity during email enrollment. See [email setup](email-setup.md); hosted configuration remains an operator step.
+As a traveler, I receive a six-digit email code and enter it in Roam without following a development-domain link. Supabase email templates must display the token and its Site URL must point to the deployed app. Preserve guest identity during email enrollment. See [email setup](email-setup.md); hosted configuration remains an operator step.
 
 ## US12 — compact mobile workspace
 
@@ -139,3 +139,10 @@ As a traveler I can switch appearance using an accessible header control, retain
 GitHub issue: https://github.com/greatng/wherewhere/issues/18
 
 Retrieve real catalog source and integrate it into the running Preact app. Shared Button derives from @shugar/button-1 (3824); compact Light/Dark/System choices derive from @campsite/theme-toggle (554). Preserve native form behavior, SVG actions, destination time, focus, touch targets and explicit/system appearance persistence. Source snapshots and adaptation notes are retained in vendor/21st; credentials are not committed. This supersedes US17's authentication blocker.
+
+
+## US19 — Roam branding
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/19
+
+Rename public branding, install metadata, icons and email copy to Roam. Preserve legacy `paikan-*` and `travelmate*` storage keys so existing sessions and preferences survive. Backend identifiers and migration history are unchanged.

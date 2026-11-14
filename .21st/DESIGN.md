@@ -1,4 +1,4 @@
-# PaiKan design context
+# Roam design context
 
 Preact/TypeScript travel PWA. Compact Japanese-inspired layout with ivory/moss light colors and charcoal/moss dark colors. Tokens live in `src/style.css`.
 

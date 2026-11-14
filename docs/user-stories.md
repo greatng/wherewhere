@@ -203,3 +203,19 @@ GitHub issue: https://github.com/greatng/wherewhere/issues/27
 As a traveler I scan each day's city, hotel and activities as a timeline. Rename visible Plan navigation to Itinerary. Use a single card level with timeline markers, meaningful date/time information and directions, following the supplied reference. As an organizer I edit or remove existing records from three-dot menus and use an organizer-only floating action control for itinerary and accommodation actions. Preserve shared version-checked accommodation editing, destination time, dark mode, keyboard accessibility and participant read-only access. Do not fabricate booking confirmations, rooms, photos or unavailable check-in times. No backend changes.
 
 US27 verification: AC1 is covered by renamed Itinerary navigation and inspected light/dark timeline captures. AC2 passes overflow menu editing, Escape/outside dismissal and focus-restoration tests. AC3 passes floating-action entry and viewport checks. AC4 passes existing shared stay editing, destination-time, participant and daily browsing regressions. AC5 uses only existing records, with no invented booking metadata or schema changes. Lint/build and fourteen focused unit/component/domain tests pass. The full browser suite passed forty cases before final presentation-only refinements; six focused interaction/capture cases passed on the refined layout. Hosted traveler data was not changed.
+
+
+## US28 — quieter Trip settings and visible invitation QR
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/28
+
+Hide the technical destination timezone editor under an optional advanced disclosure while preserving destination-local itinerary behavior. Generating each QR brings its accessible invitation panel into view and focuses it without exposing invite tokens in logs.
+
+## US29 — join invitations from a fresh mobile device
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/29
+
+As an invited traveler, I can validate an invitation, create or reuse my guest session and submit a pending request without weakening approval, invite or rate-limit rules. Report gateway/auth/invite errors accurately and preserve identity across retries. A read-only live preflight confirmed a missing `invite-gateway` function (HTTP404 NOT_FOUND) after the user reported the generic error following name submission. Production gateway version 5 is deployed with explicit owner approval. Live preflight and invalid-token validation pass; direct anonymous signup succeeds after the owner enabled it. See invitation-setup.md for evidence and setup instructions.
+
+
+US28 verification: the advanced disclosure preserves destination-time editing, and desktop/mobile QR generation tests verify panel focus and scrolling, including repeated generation. US29 verification: focused tests cover new-device validation → anonymous session → pending redemption, identity-preserving retry, missing gateway guidance and sanitized configuration errors. Eight focused browser cases and eleven invite/session/error tests pass; lint/build pass. Live checks verify gateway availability and anonymous signup; real-invitation acceptance on the other mobile remains pending.

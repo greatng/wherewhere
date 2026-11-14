@@ -415,6 +415,8 @@ async function installFixture(
       trip.status = fn === "archive_trip" ? "archived" : "active";
     } else if (fn === "set_trip_timezone") {
       trip.timezone = String(args.p_timezone);
+    } else if (fn === "create_invite") {
+      result = [{ token: "a".repeat(64) }];
     } else if (fn === "delete_trip") {
       trips.splice(0, trips.length);
     } else if (fn === "create_trip") {
@@ -1065,6 +1067,209 @@ test.describe("Browser timezone differs from trip timezone", () => {
   });
 });
 
+test("invitation QR reveals its panel and stays in the viewport", async ({
+  page,
+}, testInfo) => {
+  const fixtureState = await installFixture(page);
+  await page.goto("/");
+  await openTrip(page);
+  await page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Trip" })
+    .click();
+  await page.getByText("Trip settings and access", { exact: true }).click();
+  await page.getByText("Advanced: destination time", { exact: true }).click();
+  await page.getByRole("button", { name: /Create invitation QR/ }).click();
+  const qrPanel = page.getByRole("region", { name: "Trip invitation" });
+  await expect(qrPanel).toBeVisible();
+  await expect
+    .poll(async () => {
+      const box = await qrPanel.boundingBox();
+      return box
+        ? box.y >= 0 && box.y < (await page.evaluate(() => innerHeight))
+        : false;
+    })
+    .toBe(true);
+  await expect(
+    qrPanel.getByRole("heading", { name: "Scan to request access" }),
+  ).toBeVisible();
+  await expect(
+    qrPanel.getByRole("img", { name: "Trip invitation QR code" }),
+  ).toBeVisible();
+  await expect
+    .poll(
+      () =>
+        fixtureState.getRpcCalls().find((call) => call.fn === "create_invite")
+          ?.args,
+    )
+    .toMatchObject({ p_trip_id: tripId });
+  await page.screenshot({
+    path: `artifacts/${testInfo.project.name}-invitation-qr-fixture-preview.png`,
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Close" }).click({ force: true });
+  await expect(qrPanel).toHaveCount(0);
+});
+
+test("fresh invitation join validates before anonymous sign in and retries with the same guest identity", async ({
+  page,
+}) => {
+  const token = "b".repeat(64);
+  let anonymousSignIns = 0;
+  let redeemCalls = 0;
+  let pendingJoinCreated = false;
+  const eventOrder: string[] = [];
+  const gatewayCalls: { action: string; token: string; name?: string }[] = [];
+  await page.route("**/rest/v1/**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+  await page.route("**/auth/v1/signup**", async (route) => {
+    anonymousSignIns++;
+    eventOrder.push("anonymous-session");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: "fixture-anonymous-access",
+        token_type: "bearer",
+        expires_in: 3600,
+        refresh_token: "fixture-anonymous-refresh",
+        user: {
+          id: "66666666-6666-4666-8666-666666666666",
+          aud: "authenticated",
+          role: "authenticated",
+          is_anonymous: true,
+          app_metadata: { provider: "anonymous", providers: ["anonymous"] },
+          user_metadata: {},
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      }),
+    });
+  });
+  await page.route("**/functions/v1/invite-gateway", async (route) => {
+    const body = route.request().postDataJSON() as {
+      action: string;
+      token: string;
+      name?: string;
+    };
+    gatewayCalls.push(body);
+    eventOrder.push(`gateway-${body.action}`);
+    if (body.action === "redeem") {
+      redeemCalls++;
+      if (redeemCalls === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "temporary gateway failure" }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "pending" }),
+      });
+      pendingJoinCreated = true;
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "{}",
+    });
+  });
+  await page.goto(`/#/join/${token}`);
+  await expect(
+    page.getByRole("heading", { name: "Join a trip" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => localStorage.getItem("sb-127-auth-token")),
+  ).toBeNull();
+  await expect.poll(() => anonymousSignIns).toBe(0);
+  await page.getByText("Join as a guest", { exact: true }).click();
+  await page.getByLabel("Your name").fill("Niran");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Request to join" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Could not complete the invitation",
+  );
+  await expect.poll(() => anonymousSignIns).toBe(1);
+  await expect.poll(() => redeemCalls).toBe(1);
+  const anonIdentity = await page.evaluate(() => {
+    const session = JSON.parse(
+      localStorage.getItem("sb-127-auth-token") ?? "{}",
+    );
+    return session.user?.id;
+  });
+  expect(anonIdentity).toBe("66666666-6666-4666-8666-666666666666");
+  await page.getByRole("button", { name: "Request to join" }).click();
+  await expect(page).toHaveURL(/#$/);
+  await expect.poll(() => redeemCalls).toBe(2);
+  expect(anonymousSignIns).toBe(1);
+  expect(pendingJoinCreated).toBe(true);
+  expect(gatewayCalls.map((call) => call.action)).toEqual([
+    "validate",
+    "redeem",
+    "redeem",
+  ]);
+  expect(eventOrder).toEqual([
+    "gateway-validate",
+    "anonymous-session",
+    "gateway-redeem",
+    "gateway-redeem",
+  ]);
+  expect(gatewayCalls.every((call) => call.token === token)).toBe(true);
+  expect(
+    gatewayCalls
+      .filter((call) => call.action === "redeem")
+      .map((call) => call.name),
+  ).toEqual(["Niran", "Niran"]);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const session = JSON.parse(
+          localStorage.getItem("sb-127-auth-token") ?? "{}",
+        );
+        return session.user?.id;
+      }),
+    )
+    .toBe(anonIdentity);
+});
+
+test("invalid invitation gateway response stays unauthenticated and explains the server setup issue", async ({
+  page,
+}) => {
+  let anonymousSignIns = 0;
+  await page.route("**/auth/v1/signup**", async (route) => {
+    anonymousSignIns++;
+    await route.fulfill({ status: 500, body: "unexpected sign in" });
+  });
+  await page.route("**/functions/v1/invite-gateway", (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Function not found" }),
+    }),
+  );
+  await page.goto(`/#/join/${"c".repeat(64)}`);
+  await expect(
+    page.getByRole("heading", { name: "Join a trip" }),
+  ).toBeVisible();
+  await expect.poll(() => anonymousSignIns).toBe(0);
+  await page.getByText("Join as a guest", { exact: true }).click();
+  await page.getByLabel("Your name").fill("Mali");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Request to join" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Invitations are not set up on this server yet",
+  );
+  expect(anonymousSignIns).toBe(0);
+  await expect(page).toHaveURL(/#\/join\/[a-f0-9]{64}$/);
+  expect(
+    await page.evaluate(() => localStorage.getItem("sb-127-auth-token")),
+  ).toBeNull();
+});
+
 test("trip creation carries its date range; archive and restore work; wrong deletion title sends no RPC", async ({
   page,
 }) => {
@@ -1100,6 +1305,7 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     page.getByText("Trip settings and access", { exact: true }),
   ).toBeVisible();
   await page.getByText("Trip settings and access", { exact: true }).click();
+  await page.getByText("Advanced: destination time", { exact: true }).click();
   await page.getByLabel("Destination timezone (IANA)").fill("Asia/Tokyo");
   await page.getByRole("button", { name: "Save timezone" }).click();
   await expect

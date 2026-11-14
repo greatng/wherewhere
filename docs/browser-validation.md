@@ -122,6 +122,16 @@ The trip section is named Itinerary. Daily itinerary and Accommodation stay as t
 
 Final US24–US25 verification: lint and production build pass; twelve focused component/domain tests pass. The full browser suite completed with 37 of 38 passing; the mobile editor navigation case exposed competing smooth-scroll navigation during view switching. Editor navigation was changed to an immediate scroll. All twelve affected desktop/mobile editor and daily-overview cases then passed. The full 38-case suite was not repeated after that focused fix. Refreshed light/dark Today, daily Plan and Accommodation screenshots were inspected; the mobile Plan view choices fit on one row.
 
+## Issues 28–29: invitation join and QR
+
+Fresh browser profiles load a valid join URL without creating an anonymous session. On submit, the fixture records gateway validation before anonymous sign in, then a pending gateway redemption. A simulated temporary redemption failure can be retried with the same guest identity. A mocked gateway 404 remains unauthenticated and shows actionable setup guidance. Organizer coverage creates a fixture token, opens the QR panel, checks that it is brought into the viewport, and closes it. All join and gateway responses are intercepted; the screenshots use a synthetic invitation token and contain no real session or invitation data.
+
+![Desktop invitation QR fixture preview](../artifacts/desktop-chromium-invitation-qr-fixture-preview.png)
+
+![Mobile invitation QR fixture preview](../artifacts/mobile-chromium-invitation-qr-fixture-preview.png)
+
+Focused Playwright verification passed 8/8 desktop/mobile cases: invitation QR panel, fresh join validation and retry, gateway 404 behavior, and the existing trip creation/archive/deletion lifecycle. This verifies the browser flow against fixtures; it does not verify a deployed gateway. The hosted gateway’s initial 404 was confirmed separately. Following owner approval and secret configuration, gateway version 5 now passes live preflight and invalid-token checks, and a direct anonymous signup succeeds. A real invitation on another physical device remains unverified; see [invitation setup](invitation-setup.md).
+
 ## PWA update regression and live-origin investigation
 
 The live `roam.greatng.me` bundle contained US25 date controls. All ten daily-overview browser cases passed against its deployed JavaScript with fixture-only intercepted API responses and service workers blocked. No real traveler data or authentication was changed.

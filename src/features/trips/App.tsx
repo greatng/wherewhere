@@ -10,7 +10,7 @@ import { useMembers } from "../members/queries";
 import { pages } from "../../shared/supabase/pages";
 import { redeem } from "../invites/redeem";
 
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { QueryClient, useQuery } from "@tanstack/preact-query";
 import QRCode from "qrcode";
@@ -54,11 +54,15 @@ export function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState("");
+  const qrPanel = useRef<HTMLElement>(null);
   const [route, setRoute] = useState(location.hash);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [signOutWarning, setSignOutWarning] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    if (qr) revealEditor(qrPanel.current);
+  }, [qr]);
   useEffect(() => {
     setSelectedId(
       uid ? localStorage.getItem(`paikan-selected-trip:${uid}`) : null,
@@ -599,44 +603,52 @@ export function App() {
                                   "ตั้งค่าทริปและการเข้าถึง",
                                 )}
                               </summary>
-                              <form
-                                key={trip.timezone}
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  const f = new FormData(e.currentTarget);
-                                  void run(async () => {
-                                    await rpc("set_trip_timezone", {
-                                      p_trip_id: trip.id,
-                                      p_timezone: f.get("timezone"),
+                              <details class="trip-timezone-settings">
+                                <summary>
+                                  {t(
+                                    "Advanced: destination time",
+                                    "ขั้นสูง: เวลาปลายทาง",
+                                  )}
+                                </summary>
+                                <form
+                                  key={trip.timezone}
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const f = new FormData(e.currentTarget);
+                                    void run(async () => {
+                                      await rpc("set_trip_timezone", {
+                                        p_trip_id: trip.id,
+                                        p_timezone: f.get("timezone"),
+                                      });
                                     });
-                                  });
-                                }}
-                              >
-                                <p>
-                                  {t(
-                                    "Changing the destination timezone leaves saved timestamps unchanged. They will display in the new destination timezone, and activity days are grouped by that local date.",
-                                    "การเปลี่ยนเขตเวลาปลายทางจะไม่เปลี่ยนเวลาที่บันทึกไว้ แต่จะแสดงตามเขตเวลาใหม่ และจัดกลุ่มกิจกรรมตามวันที่ท้องถิ่น",
-                                  )}
-                                </p>
-                                <label>
-                                  {t(
-                                    "Destination timezone (IANA)",
-                                    "เขตเวลาปลายทาง (IANA)",
-                                  )}
-                                  <input
-                                    name="timezone"
-                                    required
-                                    maxLength={80}
-                                    defaultValue={trip.timezone}
-                                    placeholder="Asia/Tokyo"
-                                  />
-                                </label>
-                                <Button
-                                  disabled={busy || trip.status !== "active"}
+                                  }}
                                 >
-                                  {t("Save timezone", "บันทึกเขตเวลา")}
-                                </Button>
-                              </form>
+                                  <p>
+                                    {t(
+                                      "Changing the destination timezone leaves saved timestamps unchanged. They will display in the new destination timezone, and activity days are grouped by that local date.",
+                                      "การเปลี่ยนเขตเวลาปลายทางจะไม่เปลี่ยนเวลาที่บันทึกไว้ แต่จะแสดงตามเขตเวลาใหม่ และจัดกลุ่มกิจกรรมตามวันที่ท้องถิ่น",
+                                    )}
+                                  </p>
+                                  <label>
+                                    {t(
+                                      "Destination timezone (IANA)",
+                                      "เขตเวลาปลายทาง (IANA)",
+                                    )}
+                                    <input
+                                      name="timezone"
+                                      required
+                                      maxLength={80}
+                                      defaultValue={trip.timezone}
+                                      placeholder="Asia/Tokyo"
+                                    />
+                                  </label>
+                                  <Button
+                                    disabled={busy || trip.status !== "active"}
+                                  >
+                                    {t("Save timezone", "บันทึกเขตเวลา")}
+                                  </Button>
+                                </form>
+                              </details>
                               <Button
                                 disabled={busy || trip.status !== "active"}
                                 onClick={() =>
@@ -836,7 +848,11 @@ export function App() {
             );
           })}
         {qr && (
-          <section>
+          <section
+            ref={qrPanel}
+            class="editor-panel"
+            aria-label={t("Trip invitation", "คำเชิญเข้าร่วมทริป")}
+          >
             <h2>{t("Scan to request access", "สแกนเพื่อขอเข้าร่วม")}</h2>
             <img
               src={qr}

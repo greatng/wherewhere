@@ -7,6 +7,51 @@ export function actionError(error: unknown, thai = false): string {
   const code = value?.code ?? "";
   const message = value?.message?.toLowerCase() ?? "";
   const choose = (en: string, th: string) => (thai ? th : en);
+  if (code === "INVITE_CONFIG")
+    return choose(
+      "Ask the organizer to configure the invitation service's required server settings, then try again.",
+      "กรุณาให้ผู้จัดตั้งค่าเซิร์ฟเวอร์ของบริการคำเชิญให้ครบ แล้วลองอีกครั้ง",
+    );
+  if (code === "INVITE_SETUP")
+    return choose(
+      "Invitations are not set up on this server yet. Ask the organizer to deploy the invite-gateway function.",
+      "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่าคำเชิญ กรุณาให้ผู้จัดติดตั้งฟังก์ชัน invite-gateway",
+    );
+  if (code === "INVITE_INVALID")
+    return choose(
+      "This invitation is invalid or expired. Ask the organizer for a current invitation.",
+      "คำเชิญนี้ไม่ถูกต้องหรือหมดอายุแล้ว กรุณาขอคำเชิญใหม่จากผู้จัด",
+    );
+  if (code === "INVITE_RATE_LIMIT")
+    return choose(
+      "Too many attempts were made. Wait a little and try again.",
+      "มีการลองมากเกินไป กรุณารอสักครู่แล้วลองอีกครั้ง",
+    );
+  if (code === "INVITE_CONNECTION")
+    return choose(
+      "Could not connect to the invitation service. Check your connection; if it continues, ask the organizer to check the invite-gateway deployment and CORS setup.",
+      "เชื่อมต่อบริการคำเชิญไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต หากยังมีปัญหาให้ผู้จัดตรวจสอบการติดตั้ง invite-gateway และการตั้งค่า CORS",
+    );
+  if (code === "INVITE_AUTH")
+    return choose(
+      "Your guest session could not be verified. Refresh and try again; contact the organizer if this continues.",
+      "ไม่สามารถยืนยันเซสชันผู้เยี่ยมชมได้ กรุณารีเฟรชแล้วลองอีกครั้ง หากยังมีปัญหาให้ติดต่อผู้จัด",
+    );
+  if (code === "INVITE_FORBIDDEN")
+    return choose(
+      "The invitation service denied this request. Ask the organizer to check its allowed origins and invitation settings.",
+      "บริการคำเชิญปฏิเสธคำขอนี้ กรุณาให้ผู้จัดตรวจสอบโดเมนที่อนุญาตและการตั้งค่าคำเชิญ",
+    );
+  if (code === "INVITE_ANONYMOUS_DISABLED")
+    return choose(
+      "Guest invitations are not enabled on this server. Ask the organizer to enable anonymous sign-ins in the Supabase Auth settings.",
+      "เซิร์ฟเวอร์ยังไม่เปิดใช้คำเชิญสำหรับผู้เยี่ยมชม กรุณาให้ผู้จัดเปิด anonymous sign-ins ในการตั้งค่า Supabase Auth",
+    );
+  if (code === "INVITE_UNKNOWN")
+    return choose(
+      "Could not complete the invitation. Check your connection and try again; ask the organizer to check the invite-gateway setup if it continues.",
+      "ดำเนินการคำเชิญไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง หากยังมีปัญหาให้ผู้จัดตรวจสอบการตั้งค่า invite-gateway",
+    );
   if (code === "PGRST202" || code === "PGRST205" || value?.status === 404)
     return choose(
       "This feature is not set up on the server yet. Ask the organizer to apply the latest database migrations and refresh the API schema.",

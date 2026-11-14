@@ -1,13 +1,20 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-const origin = Deno.env.get("APP_ORIGIN")!;
+import { createClient } from "npm:@supabase/supabase-js@2.118.0";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.118.0/cors";
+const configuredOrigin = Deno.env.get("APP_ORIGIN");
 const rateSecret = Deno.env.get("INVITE_RATE_LIMIT_SECRET");
-if (
-  !rateSecret ||
-  rateSecret.length < 32 ||
-  !origin ||
-  new URL(origin).origin !== origin
-)
-  throw Error("Invalid gateway configuration");
+let origin = "";
+try {
+  if (configuredOrigin && new URL(configuredOrigin).origin === configuredOrigin)
+    origin = configuredOrigin;
+} catch {
+  // Invalid configuration must fail closed without exposing secret values.
+}
+const missingConfiguration = [
+  ...(!origin ? ["APP_ORIGIN"] : []),
+  ...(!rateSecret || rateSecret.length < 32
+    ? ["INVITE_RATE_LIMIT_SECRET"]
+    : []),
+];
 const admin = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -19,14 +26,19 @@ const hex = (bytes: ArrayBuffer) =>
   ).join("");
 Deno.serve(async (req) => {
   const headers = {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Headers":
-      "authorization, apikey, content-type, x-client-info",
+    ...(origin ? { "Access-Control-Allow-Origin": origin } : {}),
+    "Access-Control-Allow-Headers": corsHeaders["Access-Control-Allow-Headers"],
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Cache-Control": "no-store",
     "Content-Type": "application/json",
   };
   const reply = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers });
+  if (missingConfiguration.length)
+    return reply(
+      { error: "gateway_not_configured", missing: missingConfiguration },
+      503,
+    );
   if (req.method === "OPTIONS") return new Response(null, { headers });
   if (req.method !== "POST" || req.headers.get("origin") !== origin)
     return reply({ error: "forbidden" }, 403);

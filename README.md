@@ -108,3 +108,6 @@ Run `npm run test:pwa` to build and verify actual production service-worker inst
 
 
 Itinerary uses day-by-day timeline cards. Organizers open each record's three-dot menu to edit/remove it, or use the floating **Edit itinerary** control to add activities, city nights or accommodation and open accommodation management. Participants see the same itinerary without editing controls. The design does not imply booking confirmation or room counts unless those data are actually available.
+
+
+If a QR is generated but a different mobile cannot join, follow [invitation gateway deployment](docs/invitation-setup.md). The hosted `invite-gateway` must exist independently of database QR creation. The setup guide includes a no-Docker Dashboard path and a safe preflight check.

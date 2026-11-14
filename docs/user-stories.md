@@ -160,3 +160,14 @@ Separate daily Plan groups with generous vertical gaps and a destination-date he
 GitHub issue: https://github.com/greatng/wherewhere/issues/21
 
 Hide unset travel-mode placeholders on city nights and activities. Keep selected transport labels and optional editor fields.
+
+
+## US22 — story-driven SDLC skill
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/22
+
+As a product owner, every implementation requirement must have a user story and numbered acceptance criteria before implementation, so delivery stays traceable. The repository skill and AGENTS.md require confirmed issue linkage before edits, reuse existing stories, update scope before additional work, and record criterion-level verification. Read-only conversation does not create issues. Existing authorization avoids redundant approval pauses. Tracker failures require an honest local draft and an explicit exception or restored access before implementation.
+
+Acceptance: AC1 installable skill and templates; AC2 issue-first and requirement-to-criterion gates; AC3 proportional verification and honest delivery evidence; AC4 structural and blind-scenario validation. Skill files are versioned under `.agents/skills/story-driven-sdlc` and copied to the local Codex skill directory.
+
+US22 verification: AC1–AC3 pass by installed files, templates and workflow gates. AC4 passes structural checks and six simulated blind-agent scenarios; one ambiguity was corrected. No application runtime changes were made.

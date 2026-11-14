@@ -1,0 +1,4 @@
+interface:
+  display_name: "Story-driven SDLC"
+  short_description: "Trace requirements from user stories to verified delivery"
+  default_prompt: "Use $story-driven-sdlc for this requirement. Link a user story and acceptance criteria before implementation, then verify the result against them."

@@ -511,9 +511,6 @@ export function Plan({
                 key={date}
                 aria-labelledby={`day-${trip.id}-${date}`}
               >
-                <span class="timeline-marker" aria-hidden="true">
-                  {dayIndex + 1}
-                </span>
                 <div class="itinerary-day-content">
                   <h4
                     class="plan-day-heading plan-day-summary itinerary-card-header"

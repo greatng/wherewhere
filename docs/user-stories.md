@@ -241,3 +241,11 @@ See [menu-focus.md](stories/menu-focus.md) for the story, acceptance criteria an
 Issues: https://github.com/greatng/wherewhere/issues/32 and https://github.com/greatng/wherewhere/issues/33
 
 The English stories and numbered criteria are in [compact-overview-and-editors.md](stories/compact-overview-and-editors.md). Issues were opened before implementation. Overview replaces the visible Today tab; internal keys remain stable. Guest editors receive planning rights only, not administrative powers.
+
+## US34 — simpler itinerary day markers
+
+Issue: https://github.com/greatng/wherewhere/issues/34
+
+As a traveler, I want uncluttered day headings without duplicate day numbers. AC1 removes the numbered circles while retaining Day N, the date and timeline line. AC2 reduces the empty gutter and preserves day boundaries, light/dark layouts and editing controls. AC3 verifies existing itinerary flows and refreshes phone previews. No backend or permission changes.
+
+US34 verification: desktop/mobile itinerary interaction checks and the light/dark mobile capture case pass (3 cases passed; the mobile-only capture is intentionally skipped on desktop). The refreshed viewport screenshots were inspected. Lint and production build pass. The date, Day N headings, timeline line and editing menus remain intact.

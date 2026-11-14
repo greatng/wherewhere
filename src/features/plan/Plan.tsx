@@ -464,11 +464,7 @@ export function Plan({
               {night ? (
                 <>
                   <p>{night.city}</p>
-                  <p>
-                    {night.transport_mode
-                      ? tLabel(night.transport_mode, thai)
-                      : t("Travel mode not set", "ยังไม่ได้เลือกการเดินทาง")}
-                  </p>
+                  {night.transport_mode && <p>{tLabel(night.transport_mode, thai)}</p>}
                   {organizer && (
                     <>
                       <Button
@@ -523,11 +519,7 @@ export function Plan({
                     )}
                     {activity.address && <p>{activity.address}</p>}
                     {activity.notes && <p>{activity.notes}</p>}
-                    <p>
-                      {activity.transport_mode
-                        ? tLabel(activity.transport_mode, thai)
-                        : t("Travel mode not set", "ยังไม่ได้เลือกการเดินทาง")}
-                    </p>
+                    {activity.transport_mode && <p>{tLabel(activity.transport_mode, thai)}</p>}
                     {organizer && (
                       <>
                         <Button

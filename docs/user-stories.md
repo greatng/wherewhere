@@ -153,3 +153,10 @@ Rename public branding, install metadata, icons and email copy to Roam. Preserve
 GitHub issue: https://github.com/greatng/wherewhere/issues/20
 
 Separate daily Plan groups with generous vertical gaps and a destination-date header band. A numbered Day marker and stronger top rule distinguish each new day while activity rows remain flat and full width. Use matching light/dark colors and semantic date headings; no new nested cards.
+
+
+## US21 — show only selected travel modes
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/21
+
+Hide unset travel-mode placeholders on city nights and activities. Keep selected transport labels and optional editor fields.

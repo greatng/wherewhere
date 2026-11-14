@@ -137,3 +137,14 @@ Focused Playwright verification passed 8/8 desktop/mobile cases: invitation QR p
 The live `roam.greatng.me` bundle contained US25 date controls. All ten daily-overview browser cases passed against its deployed JavaScript with fixture-only intercepted API responses and service workers blocked. No real traveler data or authentication was changed.
 
 A separate production-build reproduction confirmed that the old app could have a newer waiting worker with no update action. `npm run test:pwa` now verifies update detection, reopening while an update waits, user-triggered activation/reload, and preservation of a local storage marker and a synthetic queued expense. It does not clear user storage or force an update during editing. The captured prompt is [PWA update preview](../artifacts/pwa-update-fixture-preview.png). The user's private cached client state remains unverified.
+
+## US32–US33: compact Overview and guest editors
+
+The phone fixture uses a long hotel name and address to check wrapping without horizontal scrolling. The screenshots contain synthetic hotel/contact data. Viewport captures include the sticky header and trip tabs at 390×844 CSS pixels, in light and dark themes; the Overview tab keeps a 44px touch target. Full content captures remain available for reviewing the day list. Senior sizing remains separate from the compact default.
+
+- [Light itinerary viewport](../artifacts/mobile-chromium-light-itinerary-viewport-fixture-preview.png)
+- [Dark itinerary viewport](../artifacts/mobile-chromium-dark-itinerary-viewport-fixture-preview.png)
+- [Light Overview viewport](../artifacts/mobile-chromium-light-overview-viewport-fixture-preview.png)
+- [Dark Overview viewport](../artifacts/mobile-chromium-dark-overview-viewport-fixture-preview.png)
+
+Browser coverage checks a single formatted day heading outside the accommodation card, date navigation, grant/revoke controls, read-only participants and approved guest editors. Server/database tests separately prove authorization; mocked browser flows alone do not prove hosted permission enforcement. The permission migration is deployed, but no real trip's editing permissions were changed for testing.

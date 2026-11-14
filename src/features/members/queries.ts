@@ -10,6 +10,7 @@ type MemberRow = {
   role: string;
   status: string;
   managed_by_user_id: string | null;
+  can_edit_plan?: boolean;
 };
 function mayUseOfflineCache(error: unknown) {
   const candidate = error as { status?: number; code?: string } | null;

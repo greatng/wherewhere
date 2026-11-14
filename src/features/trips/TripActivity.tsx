@@ -1,4 +1,5 @@
 import { Button } from "../../shared/ui/Button";
+import { OverflowMenu } from "../../shared/ui/OverflowMenu";
 import { ActionIcon } from "../../shared/ActionIcon";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
@@ -49,6 +50,7 @@ type Member = {
   role: string;
   status: string;
   managed_by_user_id: string | null;
+  can_edit_plan?: boolean;
 };
 type Trip = {
   id: string;
@@ -226,6 +228,7 @@ export function TripActivity({
   const tripMembers = members.filter((m) => m.trip_id === trip.id);
   const me = approved.find((m) => m.user_id === uid);
   const organizer = me?.role === "organizer";
+  const canEditPlan = organizer || me?.can_edit_plan === true;
   const [tab, setTab] = useState<"today" | "plan" | "expenses" | "trip">(
     "today",
   );
@@ -234,6 +237,7 @@ export function TripActivity({
     () => localStorage.getItem(seniorKey) === "true",
   );
   const [editing, setEditing] = useState<Item | null>(null);
+  const [stayToEdit, setStayToEdit] = useState<StaySummary | null>(null);
   const stopEditor = useRef<HTMLDetailsElement>(null);
   const [stopEditorOpen, setStopEditorOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -345,9 +349,7 @@ export function TripActivity({
     );
   }, [trip.id, trip.start_date, trip.end_date, destinationTimezone]);
   const isActualToday = selectedDay === actualToday;
-  const dayLabel = isActualToday
-    ? tr("Today", "วันนี้")
-    : formatDateLabel(selectedDay, thai ? "th-TH" : "en");
+  const dayLabel = formatDateLabel(selectedDay, thai ? "th-TH" : "en");
   const tonightQuery = useQuery({
     queryKey: ["tonight", uid, trip.id],
     queryFn: async () => {
@@ -856,12 +858,6 @@ export function TripActivity({
       }
     >
       <div class="activity-heading">
-        <div>
-          <h2>{tr("Trip details", "รายละเอียดทริป")}</h2>
-          <p>
-            {trip.title} · {trip.base_currency}
-          </p>
-        </div>
         <Button
           type="button"
           aria-pressed={senior}
@@ -978,14 +974,17 @@ export function TripActivity({
               aria-current={tab === "today" ? "page" : undefined}
               onClick={() => setTab("today")}
             >
-              {tr("Today", "วันนี้")}
+              {tr("Overview", "ภาพรวม")}
             </Button>
           )}
           {!senior && (
             <Button
               type="button"
               aria-current={tab === "plan" ? "page" : undefined}
-              onClick={() => setTab("plan")}
+              onClick={() => {
+                setStayToEdit(null);
+                setTab("plan");
+              }}
             >
               {tr("Itinerary", "แผนการเดินทาง")}
             </Button>
@@ -1016,7 +1015,13 @@ export function TripActivity({
       )}
       {tab === "trip" && !senior && tripSettings}
       {tab === "plan" ? (
-        <Plan trip={trip} uid={uid} thai={thai} organizer={organizer} />
+        <Plan
+          trip={trip}
+          uid={uid}
+          thai={thai}
+          organizer={canEditPlan}
+          initialStay={stayToEdit}
+        />
       ) : tab === "today" ? (
         <>
           <div class="day-browser">
@@ -1063,7 +1068,9 @@ export function TripActivity({
               </svg>
             </Button>
           </div>
-          <h2>{dayLabel}</h2>
+          <h2 class="overview-day-heading">
+            <time dateTime={selectedDay}>{dayLabel}</time>
+          </h2>
           {!isActualToday ? null : (
             <div class="next-stop">
               {today.state === "trip-finished" ? (
@@ -1126,7 +1133,6 @@ export function TripActivity({
                       ? new Date(heroStop.starts_at).toLocaleString(
                           thai ? "th-TH" : "en",
                           {
-                            dateStyle: "medium",
                             timeStyle: "short",
                             timeZone: destinationTimezone,
                           },
@@ -1160,18 +1166,33 @@ export function TripActivity({
               "เมืองและที่พักของวันที่เลือก",
             )}
           >
-            <strong>{dayLabel}</strong>
-            <time dateTime={selectedDay}>
-              {formatDateLabel(selectedDay, thai ? "th-TH" : "en")}
-            </time>
             <p>
               {selectedNight?.city ??
                 tr("City not set yet", "ยังไม่ได้กำหนดเมือง")}
             </p>
             {selectedStay ? (
               <>
-                <strong>{selectedStay.name}</strong>
-                {selectedStay.address && <p>{selectedStay.address}</p>}
+                <div class="overview-stay-heading">
+                  <strong>{selectedStay.name}</strong>
+                  {canEditPlan && !senior && (
+                    <OverflowMenu
+                      name={selectedStay.name}
+                      label={tr(
+                        `Options for ${selectedStay.name}`,
+                        `ตัวเลือกสำหรับ ${selectedStay.name}`,
+                      )}
+                      items={[
+                        {
+                          label: tr("Edit accommodation", "แก้ไขที่พัก"),
+                          onSelect: () => {
+                            setStayToEdit(selectedStay);
+                            setTab("plan");
+                          },
+                        },
+                      ]}
+                    />
+                  )}
+                </div>
                 <a
                   class="map-link"
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedStay.address || selectedStay.name)}`}
@@ -1180,11 +1201,19 @@ export function TripActivity({
                 >
                   {tr("Accommodation directions", "เส้นทางไปที่พัก")}
                 </a>
-                {selectedStay.phone && (
-                  <a href={`tel:${selectedStay.phone}`}>
-                    {tr("Call accommodation", "โทรหาที่พัก")}:{" "}
-                    {selectedStay.phone}
-                  </a>
+                {(selectedStay.address || selectedStay.phone) && (
+                  <details class="stay-details">
+                    <summary>
+                      {tr("Address and contact", "ที่อยู่และข้อมูลติดต่อ")}
+                    </summary>
+                    {selectedStay.address && <p>{selectedStay.address}</p>}
+                    {selectedStay.phone && (
+                      <a href={`tel:${selectedStay.phone}`}>
+                        {tr("Call accommodation", "โทรหาที่พัก")}:{" "}
+                        {selectedStay.phone}
+                      </a>
+                    )}
+                  </details>
                 )}
               </>
             ) : (
@@ -1245,7 +1274,6 @@ export function TripActivity({
                       {new Date(item.starts_at).toLocaleString(
                         thai ? "th-TH" : "en",
                         {
-                          dateStyle: "medium",
                           timeStyle: "short",
                           timeZone: destinationTimezone,
                         },
@@ -1266,7 +1294,7 @@ export function TripActivity({
                   >
                     {tr("Open directions", "เปิดเส้นทางในแผนที่")}
                   </a>
-                  {organizer && !senior && (
+                  {canEditPlan && !senior && (
                     <>
                       <Button
                         type="button"
@@ -1305,7 +1333,7 @@ export function TripActivity({
                   )}
                 </article>
               ))}
-              {organizer && !senior && (
+              {canEditPlan && !senior && (
                 <details
                   class="stop-editor"
                   ref={stopEditor}
@@ -1922,7 +1950,6 @@ function EmergencyCard({
       <strong>{tr("Family contact", "ผู้ติดต่อในครอบครัว")}</strong>
       {card?.emergency_contact_name && (
         <p>
-          {tr("Family contact", "ผู้ติดต่อในครอบครัว")}:{" "}
           {card.emergency_contact_name}
           <br />
           <a href={`tel:${card.emergency_contact_phone}`}>

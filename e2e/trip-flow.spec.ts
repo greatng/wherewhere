@@ -52,6 +52,7 @@ type FixtureRpcArgs = {
   p_expense_time?: string | null;
   p_shares?: { member_id: string; owed_minor: string }[];
   p_member_id?: string;
+  p_can_edit?: boolean;
   p_item_id?: string;
 };
 
@@ -60,11 +61,14 @@ async function installFixture(
   options: {
     guest?: boolean;
     participant?: boolean;
+    editor?: boolean;
+    linkedMember?: boolean;
     daily?: boolean;
+    longHotel?: boolean;
     invites?: Record<string, unknown>[];
   } = {},
 ) {
-  const fixtureUid = options.participant ? bob : uid;
+  const fixtureUid = options.participant || options.editor ? bob : uid;
   const trip = {
     id: tripId,
     title: "Bangkok Weekend",
@@ -94,14 +98,19 @@ async function installFixture(
       display_name: "Mali",
       role: "organizer",
       status: "approved",
+      can_edit_plan: false,
     },
     {
       id: bob,
       trip_id: tripId,
-      user_id: options.participant ? bob : null,
+      user_id:
+        options.participant || options.editor || options.linkedMember
+          ? bob
+          : null,
       display_name: "Niran",
       role: "member",
       status: "approved",
+      can_edit_plan: !!options.editor,
     },
   ];
   let itinerary: Record<string, unknown>[] = [
@@ -195,8 +204,12 @@ async function installFixture(
       trip_id: tripId,
       check_in_date: "2026-11-01",
       check_out_date: "2026-11-03",
-      name: "River House",
-      address: "1 River Road",
+      name: options.longHotel
+        ? "Traditional Kyoto Machiya near Nishiki Market"
+        : "River House",
+      address: options.longHotel
+        ? "123 Shijo-dori, Nakagyo Ward, Kyoto, Kyoto Prefecture 604-8125, Japan"
+        : "1 River Road",
       phone: "+66 2 123 4567",
       version: 1,
     },
@@ -422,6 +435,12 @@ async function installFixture(
       trip.status = fn === "archive_trip" ? "archived" : "active";
     } else if (fn === "set_trip_timezone") {
       trip.timezone = String(args.p_timezone);
+    } else if (fn === "set_member_plan_permission") {
+      const member = members.find(
+        (candidate) => candidate.id === args.p_member_id,
+      );
+      if (member) member.can_edit_plan = args.p_can_edit === true;
+      result = member ?? null;
     } else if (fn === "create_invite") {
       result = [{ token: "a".repeat(64) }];
     } else if (fn === "revoke_invite") {
@@ -1908,9 +1927,145 @@ test.describe("Daily itinerary browser regressions", () => {
     ).toHaveCount(0);
     await expect(plan.locator(".overflow-trigger")).toHaveCount(0);
   });
+
+  test("single-date Overview shows one day heading and retains date controls", async ({
+    page,
+  }) => {
+    await installFixture(page);
+    await page.goto("/");
+    await openTrip(page);
+    const tabs = page.getByRole("navigation", { name: "Trip sections" });
+    await expect(
+      tabs.getByRole("button", { name: "Overview", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Itinerary date")).toHaveValue("2026-11-02");
+    await expect(page.locator("h2.overview-day-heading")).toHaveCount(1);
+    await expect(page.locator("h2.overview-day-heading time")).toHaveAttribute(
+      "datetime",
+      "2026-11-02",
+    );
+    await expect(page.locator(".tonight-card time")).toHaveCount(0);
+    await expect(page.locator(".tonight-card")).not.toContainText("Nov 2");
+    await expect(page.locator(".tonight-card")).not.toContainText(
+      /Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/,
+    );
+  });
+
+  test("organizer grants and revokes plan editing for an approved member", async ({
+    page,
+  }) => {
+    const fixture = await installFixture(page, { linkedMember: true });
+    await page.goto("/");
+    await openTrip(page);
+    await page
+      .getByRole("navigation", { name: "Trip sections" })
+      .getByRole("button", { name: "Trip", exact: true })
+      .click();
+    const traveler = page
+      .locator(".trip-member-row")
+      .filter({ hasText: "Niran" });
+    await traveler.getByRole("button", { name: "Grant editing" }).click();
+    await expect
+      .poll(
+        () =>
+          fixture
+            .getRpcCalls()
+            .find((call) => call.fn === "set_member_plan_permission")?.args,
+      )
+      .toMatchObject({ p_member_id: bob, p_can_edit: true });
+    await expect(
+      traveler.getByRole("button", { name: "Remove editing" }),
+    ).toBeVisible();
+    await traveler.getByRole("button", { name: "Remove editing" }).click();
+    await expect
+      .poll(
+        () =>
+          fixture
+            .getRpcCalls()
+            .filter((call) => call.fn === "set_member_plan_permission")
+            .at(-1)?.args,
+      )
+      .toMatchObject({ p_member_id: bob, p_can_edit: false });
+    await expect(
+      traveler.getByRole("button", { name: "Grant editing" }),
+    ).toBeVisible();
+  });
+
+  test("approved guest editor can edit activities and stays without admin controls", async ({
+    page,
+  }) => {
+    const fixture = await installFixture(page, {
+      editor: true,
+      guest: true,
+      daily: true,
+    });
+    await page.goto("/");
+    await openTrip(page);
+    const overview = page.locator(".activity");
+    const editStop = overview
+      .getByRole("button", { name: "Edit stop" })
+      .first();
+    await expect(editStop).toBeVisible();
+    await editStop.click();
+    await expect(page.getByLabel("Place or activity")).toHaveValue("Wat Arun");
+    await page.getByLabel("Place or activity").fill("Wat Arun Updated");
+    await page.getByRole("button", { name: "Save stop" }).click();
+    await expect
+      .poll(
+        () =>
+          fixture
+            .getRpcCalls()
+            .find((call) => call.fn === "upsert_itinerary_item")?.args,
+      )
+      .toMatchObject({
+        p_item_id: "stop-1",
+        p_expected_version: 1,
+        p_title: "Wat Arun Updated",
+      });
+    await overview
+      .getByRole("button", { name: "Options for River House" })
+      .click();
+    await overview
+      .getByRole("menuitem", { name: "Edit accommodation" })
+      .click();
+    await expect(page.getByLabel("Name")).toHaveValue("River House");
+    await page.getByLabel("Name").fill("River House Updated");
+    await page.getByRole("button", { name: "Save accommodation" }).click();
+    await expect
+      .poll(
+        () =>
+          fixture.getRpcCalls().find((call) => call.fn === "upsert_stay")?.args,
+      )
+      .toMatchObject({
+        p_stay_id: "stay-1",
+        p_expected_version: 1,
+        p_name: "River House Updated",
+      });
+    await expect(
+      page.getByRole("status").filter({ hasText: "Accommodation saved." }),
+    ).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Trip sections" })
+      .getByRole("button", { name: "Trip", exact: true })
+      .click();
+    await expect(
+      page.getByText("Trip settings and access", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Archive trip" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", {
+        name: "Create invitation QR (24 hours, 8 uses)",
+      }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Grant editing" }),
+    ).toHaveCount(0);
+  });
 });
 
-test("captures Today, Itinerary, Expenses, and Trip previews with a fixed Bangkok date", async ({
+test("captures Overview, Itinerary, Expenses, and Trip previews with a fixed Bangkok date", async ({
   page,
 }, testInfo) => {
   await page.clock.install({ time: new Date("2026-11-02T03:00:00.000Z") });
@@ -1943,7 +2098,7 @@ test("captures Today, Itinerary, Expenses, and Trip previews with a fixed Bangko
       name: "Selected day destination and accommodation",
     }),
   ).not.toContainText("Asia/Bangkok");
-  await screenshot("today");
+  await screenshot("overview");
   await page
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Itinerary" })
@@ -2123,7 +2278,7 @@ test("captures dark trip tabs and light preview without horizontal overflow", as
       style: "header, .activity-tabs { position: static !important; }",
     });
   };
-  await capture("today", "dark");
+  await capture("overview", "dark");
   for (const tab of ["Itinerary", "Expenses", "Trip"] as const) {
     await page
       .getByRole("navigation", { name: "Trip sections" })
@@ -2165,7 +2320,63 @@ test("captures dark trip tabs and light preview without horizontal overflow", as
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page
     .getByRole("navigation", { name: "Trip sections" })
-    .getByRole("button", { name: "Today" })
+    .getByRole("button", { name: "Overview", exact: true })
     .click();
-  await capture("today", "light");
+  await capture("overview", "light");
+});
+
+test("captures compact mobile Overview and Itinerary in light and dark themes", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    !testInfo.project.name.startsWith("mobile"),
+    "mobile layout fixture",
+  );
+  await page.emulateMedia({ colorScheme: "light" });
+  await installFixture(page, { longHotel: true });
+  await page.goto("/");
+  await openTrip(page);
+  const activity = page.locator(".activity");
+  const capture = async (
+    tab: "overview" | "itinerary",
+    theme: "light" | "dark",
+  ) => {
+    const { viewportWidth, documentWidth } = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(
+      documentWidth,
+      `${theme} mobile ${tab} should fit the viewport`,
+    ).toBeLessThanOrEqual(viewportWidth);
+    await activity.screenshot({
+      path: `artifacts/${testInfo.project.name}-${theme}-${tab}-compact-fixture-preview.png`,
+      style: "header, .activity-tabs { position: static !important; }",
+    });
+    await (
+      tab === "overview"
+        ? page.locator(".overview-day-heading")
+        : page.locator(".plan-day-heading").first()
+    ).scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `artifacts/${testInfo.project.name}-${theme}-${tab}-viewport-fixture-preview.png`,
+    });
+  };
+  const overviewTab = page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Overview", exact: true });
+  const box = await overviewTab.boundingBox();
+  expect(
+    box?.height ?? 0,
+    "Overview tab should have a 44px touch target",
+  ).toBeGreaterThanOrEqual(44);
+  await capture("overview", "light");
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await capture("overview", "dark");
+  const tabs = page.getByRole("navigation", { name: "Trip sections" });
+  await tabs.getByRole("button", { name: "Itinerary", exact: true }).click();
+  await capture("itinerary", "dark");
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await capture("itinerary", "light");
 });

@@ -4,8 +4,8 @@
   font-family: Inter, "Noto Sans Thai", system-ui, sans-serif;
   color: #292a25;
   background: #f5f1e8;
-  font-size: 18px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --ink: #292a25;
@@ -383,14 +383,27 @@ details > summary {
   }
 }
 @media (max-width: 560px) {
+  :root {
+    font-size: 15.5px;
+    line-height: 1.48;
+  }
   main {
-    padding: 1.1rem 0.85rem 4rem;
+    padding: 0.65rem 0.65rem 2.5rem;
   }
   header {
-    padding: 0.65rem 0.85rem;
+    min-height: 56px;
+    padding: 0.35rem 0.7rem;
   }
   .activity-heading {
     align-items: flex-start;
+  }
+  .activity-heading:has(> button:only-child) {
+    justify-content: flex-end;
+    padding: 0.15rem 0;
+  }
+  .activity-heading:has(> button:only-child) button {
+    min-height: 44px;
+    margin: 0;
   }
   .activity-tabs {
     position: sticky;
@@ -405,8 +418,8 @@ details > summary {
   }
   section,
   form {
-    padding: 1rem;
-    border-radius: 18px;
+    padding: 0.75rem;
+    border-radius: 14px;
   }
 
   /* Keep the trip readable while reducing the amount of scrolling on phones. */
@@ -414,16 +427,16 @@ details > summary {
     padding-bottom: 2.5rem;
   }
   h1 {
-    font-size: clamp(1.8rem, 8vw, 2.35rem);
-    margin: 0.25rem 0 0.9rem;
+    font-size: clamp(1.55rem, 7vw, 2rem);
+    margin: 0.2rem 0 0.65rem;
   }
   h2 {
-    font-size: 1.3rem;
-    margin: 0.15rem 0 0.55rem;
+    font-size: 1.2rem;
+    margin: 0.15rem 0 0.45rem;
   }
   h3 {
-    font-size: 1.05rem;
-    margin: 0.9rem 0 0.45rem;
+    font-size: 1rem;
+    margin: 0.7rem 0 0.35rem;
   }
   p {
     margin: 0.3rem 0 0.55rem;
@@ -442,8 +455,8 @@ details > summary {
     padding: 0.55rem 0.7rem;
   }
   button {
-    min-height: 48px;
-    padding: 0.55rem 0.8rem;
+    min-height: 46px;
+    padding: 0.45rem 0.7rem;
   }
   .activity {
     margin: 0.5rem 0;
@@ -451,6 +464,23 @@ details > summary {
   .plan {
     padding: 0;
     border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .trip-workspace {
+    padding: 0;
+    margin: 0.3rem 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .trip-workspace > section,
+  .trip-workspace > form {
+    padding: 0;
+    margin: 0.35rem 0;
+    border: 0;
+    border-radius: 0;
     background: transparent;
     box-shadow: none;
   }
@@ -474,9 +504,9 @@ details > summary {
   }
   .activity-tabs button {
     min-width: 0;
-    min-height: 46px;
+    min-height: 44px;
     padding-inline: 0.25rem;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
   .next-stop {
     padding: 0.9rem;
@@ -498,9 +528,9 @@ details > summary {
   .plan-activity,
   .stop-editor,
   .expense-entry {
-    padding: 0.7rem 0.8rem;
-    margin: 0.45rem 0;
-    border-radius: 13px;
+    padding: 0.6rem 0.7rem;
+    margin: 0.35rem 0;
+    border-radius: 12px;
   }
   .plan-activity {
     margin-left: 0.15rem;
@@ -545,6 +575,82 @@ details > summary {
   .senior .next-stop button,
   .senior .next-stop a {
     min-height: 56px;
+  }
+}
+
+/* Mobile overview density: preserve the warm Roam palette while trimming chrome. */
+@media (max-width: 560px) {
+  .overview-day-heading {
+    font-size: 1.05rem;
+    line-height: 1.35;
+    margin: 0.15rem 0 0.45rem;
+  }
+  .stay-details > summary {
+    min-height: 44px;
+  }
+  .stay-details[open] {
+    overflow-wrap: anywhere;
+  }
+  .activity-heading p,
+  .plan > p:first-of-type {
+    font-size: 0.92rem;
+  }
+  .overview-stay-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+  .overview-stay-heading > :first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .trip-member-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+    min-width: 0;
+    padding: 0.45rem 0;
+  }
+  .trip-member-row > :first-child {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .trip-member-row button {
+    min-height: 44px;
+    margin: 0;
+  }
+  .member-permission {
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+  .activity-tabs {
+    top: 56px;
+  }
+  .plan-night + .plan-night {
+    margin-top: 1rem;
+  }
+  .itinerary-timeline,
+  .plan-timeline {
+    padding-left: 1.45rem;
+  }
+  .itinerary-timeline::before,
+  .plan-timeline::before {
+    left: 0.43rem;
+  }
+  .timeline-marker {
+    left: -1.42rem;
+  }
+  .itinerary-card,
+  .plan-hotel-card {
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+  }
+  .timeline-entry {
+    margin-bottom: 0.85rem;
   }
 }
 
@@ -1212,6 +1318,71 @@ button.theme-toggle {
 }
 .pwa-update-notice p {
   margin: 0.25rem 0 0.6rem;
+}
+
+/* Keep day metadata on one compact line when the viewport allows it. */
+.plan-day-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.55rem;
+  min-width: 0;
+}
+.plan-day-meta > :last-child {
+  margin-left: auto;
+}
+.plan-day-meta p {
+  margin: 0;
+}
+.plan-day-meta .overflow-menu {
+  margin-left: auto;
+}
+.plan-day-meta .overflow-trigger,
+.overview-stay-heading .overflow-trigger {
+  min-width: 44px;
+  min-height: 44px;
+}
+.plan-day-meta button,
+.plan-day-meta a {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.activity:not(.senior) .next-stop {
+  padding: 0.8rem 0.9rem;
+}
+.activity:not(.senior) .next-stop h3 {
+  font-size: 1.05rem;
+  line-height: 1.35;
+  margin: 0.25rem 0;
+}
+.activity:not(.senior) .map-link {
+  min-height: 44px;
+}
+.activity:not(.senior) .tonight-card {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.65rem 0.8rem;
+  margin: 0.55rem 0 0.75rem;
+}
+.activity:not(.senior) .tonight-card p {
+  margin: 0.15rem 0;
+}
+.activity:not(.senior) .help-card {
+  padding: 0.6rem 0.7rem;
+  margin-top: 0.5rem;
+}
+.activity:not(.senior) .help-card > strong {
+  margin-bottom: 0.15rem;
+}
+.activity:not(.senior) .overview-stay-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+.activity:not(.senior) .overview-stay-heading > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Timeline layout for the trip plan. Day and stay cards share one surface level. */

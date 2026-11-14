@@ -1,8 +1,10 @@
 # Roam — M1 through M4 and Phase 1
 
-Roam is a Preact/TypeScript PWA for small group trips. Travelers join through an expiring QR invitation, receive a persistent Supabase anonymous session, and wait for organizer approval. Approved travelers share an itinerary and expenses with deterministic whole-unit splits and suggested settlements. The dashboard keeps one trip workspace open at a time. Itinerary and expense data can be cached on the device, and expenses created offline are queued for inspection and retry when connectivity returns. English/Thai labels, 18px text and 56px buttons are included. No identity is created on launch.
+Roam is a Preact/TypeScript PWA for small group trips. Travelers join through an expiring QR invitation, receive a persistent Supabase anonymous session, and wait for organizer approval. Approved travelers share an itinerary and expenses with deterministic whole-unit splits and suggested settlements. The dashboard keeps one trip workspace open at a time. Itinerary and expense data can be cached on the device, and expenses created offline are queued for inspection and retry when connectivity returns. English/Thai labels, compact default layouts and a larger Senior view are included. No identity is created on launch.
 
-Phase 1 adds nightly city/date ranges and accommodation, daily activities with transport, expense date/time and correction, and trip archive/restore. The trip workspace presents Today, Itinerary, Expenses, and Trip sections for mobile use. Existing trip data remains readable after archiving; restoring a trip does not restore invitations that were revoked during archive.
+Phase 1 adds nightly city/date ranges and accommodation, daily activities with transport, expense date/time and correction, and trip archive/restore. The trip workspace presents Overview, Itinerary, Expenses, and Trip sections for mobile use. Existing trip data remains readable after archiving; restoring a trip does not restore invitations that were revoked during archive.
+
+Organizers can grant approved device-linked guests permission to edit activities, city nights and accommodation from **Trip → Travelers → Grant editing**. Guests need no email. Editors cannot administer trips, invitations or members. See [the Overview and guest-editor stories](docs/stories/compact-overview-and-editors.md) for the required migration and verification.
 
 ## Run locally
 

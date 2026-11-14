@@ -181,7 +181,9 @@ export function App() {
       pages((from, to) =>
         db
           .from("trip_invites")
-          .select("id,trip_id,expires_at,uses_count,max_uses,revoked_at,deleted_at")
+          .select(
+            "id,trip_id,expires_at,uses_count,max_uses,revoked_at,deleted_at",
+          )
           .is("deleted_at", null)
           .order("id")
           .range(from, to),
@@ -555,7 +557,7 @@ export function App() {
                 m.status === "approved",
             );
             return (
-              <section key={trip.id}>
+              <section class="trip-workspace" key={trip.id}>
                 <h2>{trip.title}</h2>
                 <p>
                   {trip.start_date} — {trip.end_date} · {trip.base_currency} ·{" "}
@@ -577,8 +579,44 @@ export function App() {
                               m.trip_id === trip.id && m.status === "approved",
                           )
                           .map((m) => (
-                            <p key={m.id}>
-                              {m.display_name}
+                            <div class="trip-member-row" key={m.id}>
+                              <span>
+                                {m.display_name}
+                                {m.role !== "organizer" && (
+                                  <small class="member-permission">
+                                    {" "}
+                                    ·{" "}
+                                    {m.can_edit_plan
+                                      ? t("Can edit itinerary", "แก้ไขแผนได้")
+                                      : t("Read only", "ดูได้อย่างเดียว")}
+                                  </small>
+                                )}
+                              </span>
+                              {org &&
+                                m.role !== "organizer" &&
+                                m.user_id &&
+                                !m.managed_by_user_id && (
+                                  <Button
+                                    type="button"
+                                    appearance="secondary"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      void run(async () => {
+                                        await rpc(
+                                          "set_member_plan_permission",
+                                          {
+                                            p_member_id: m.id,
+                                            p_can_edit: !m.can_edit_plan,
+                                          },
+                                        );
+                                      })
+                                    }
+                                  >
+                                    {m.can_edit_plan
+                                      ? t("Remove editing", "ยกเลิกสิทธิ์แก้ไข")
+                                      : t("Grant editing", "ให้สิทธิ์แก้ไข")}
+                                  </Button>
+                                )}
                               {org && m.role !== "organizer" && (
                                 <Button
                                   disabled={busy}
@@ -593,7 +631,7 @@ export function App() {
                                   {t("Remove", "นำออก")}
                                 </Button>
                               )}
-                            </p>
+                            </div>
                           ))}
                         {org && (
                           <>
@@ -758,7 +796,10 @@ export function App() {
                                           });
                                         }}
                                       >
-                                        {t("Delete revoked invitation", "ลบคำเชิญที่ยกเลิกแล้ว")}
+                                        {t(
+                                          "Delete revoked invitation",
+                                          "ลบคำเชิญที่ยกเลิกแล้ว",
+                                        )}
                                       </Button>
                                     ) : (
                                       <Button

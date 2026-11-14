@@ -98,11 +98,13 @@ export function Plan({
   uid,
   thai,
   organizer = false,
+  initialStay,
 }: {
   trip: TripLike;
   uid: string;
   thai: boolean;
   organizer?: boolean;
+  initialStay?: Stay | null;
 }) {
   const t = (en: string, th: string) => (thai ? th : en);
   const locale = thai ? "th-TH" : "en";
@@ -111,19 +113,27 @@ export function Plan({
   const [notice, setNotice] = useState("");
   const [replaceRange, setReplaceRange] = useState(false);
   const [nightForm, setNightForm] = useState<Night | null>(null);
-  const [stayForm, setStayForm] = useState<Stay | null>(null);
+  const [stayForm, setStayForm] = useState<Stay | null>(
+    organizer ? (initialStay ?? null) : null,
+  );
   const [activityForm, setActivityForm] = useState<Activity | null>(null);
   const [activityDate, setActivityDate] = useState(trip.start_date);
   const [showNightEditor, setShowNightEditor] = useState(false);
-  const [showStayEditor, setShowStayEditor] = useState(false);
+  const [showStayEditor, setShowStayEditor] = useState(
+    organizer && !!initialStay,
+  );
   const [showActivityEditor, setShowActivityEditor] = useState(false);
   const [showOrganizerActions, setShowOrganizerActions] = useState(false);
-  const [planView, setPlanView] = useState<"daily" | "accommodation">("daily");
-  const [stayDate, setStayDate] = useState(trip.start_date);
+  const [planView, setPlanView] = useState<"daily" | "accommodation">(
+    organizer && initialStay ? "accommodation" : "daily",
+  );
+  const [stayDate, setStayDate] = useState(
+    initialStay?.check_in_date ?? trip.start_date,
+  );
   const [editorNavigation, setEditorNavigation] = useState(0);
   const [editorNavigationTarget, setEditorNavigationTarget] = useState<
     "night" | "stay" | "activity" | null
-  >(null);
+  >(organizer && initialStay ? "stay" : null);
   const requestEditorNavigation = (target: "night" | "stay" | "activity") => {
     setEditorNavigationTarget(target);
     setEditorNavigation((n) => n + 1);
@@ -446,7 +456,10 @@ export function Plan({
   }, [showActivityEditor, editorNavigation, editorNavigationTarget]);
   useEffect(() => {
     if (!showOrganizerActions) return;
-    const actionItems = organizerActionsRef.current?.querySelectorAll<HTMLButtonElement>("[role='menuitem']");
+    const actionItems =
+      organizerActionsRef.current?.querySelectorAll<HTMLButtonElement>(
+        "[role='menuitem']",
+      );
     actionItems?.[organizerFocusIndex.current]?.focus();
     const outside = (event: PointerEvent) => {
       if (!organizerActionsRef.current?.contains(event.target as Node))
@@ -512,10 +525,12 @@ export function Plan({
                     <time dateTime={date}>{formatDateLabel(date, locale)}</time>
                   </h4>
                   {night ? (
-                    <>
+                    <div class="plan-day-meta">
                       <p>{night.city}</p>
                       {night.transport_mode && (
-                        <p>{tLabel(night.transport_mode, thai)}</p>
+                        <p class="plan-day-transport">
+                          {tLabel(night.transport_mode, thai)}
+                        </p>
                       )}
                       {organizer && (
                         <OverflowMenu
@@ -542,7 +557,7 @@ export function Plan({
                           ]}
                         />
                       )}
-                    </>
+                    </div>
                   ) : (
                     <p>{t("Destination not set", "ยังไม่ได้กำหนดเมือง")}</p>
                   )}
@@ -552,12 +567,21 @@ export function Plan({
                       <div class="plan-daily-stay plan-hotel-card">
                         <strong>{stay.name}</strong>
                         <p>
-                          {formatDateLabel(stay.check_in_date, locale)} –{" "}
-                          {formatDateLabel(stay.check_out_date, locale)}
+                          {new Intl.DateTimeFormat(locale, {
+                            month: "short",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          }).formatRange(
+                            new Date(`${stay.check_in_date}T00:00:00Z`),
+                            new Date(`${stay.check_out_date}T00:00:00Z`),
+                          )}
                         </p>
                         {stay.address && (
                           <>
-                            <p>{stay.address}</p>
+                            <details class="stay-details">
+                              <summary>{t("Address", "ที่อยู่")}</summary>
+                              <p>{stay.address}</p>
+                            </details>
                             <a
                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stay.address)}`}
                               target="_blank"

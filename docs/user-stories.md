@@ -235,3 +235,9 @@ US31 verification: AC1 and AC4 pass the desktop/mobile browser flow: dismissing 
 GitHub issue: https://github.com/greatng/wherewhere/issues/30
 
 See [menu-focus.md](stories/menu-focus.md) for the story, acceptance criteria and deterministic red/green regression. Escape now restores trigger focus without a pending opening effect stealing it.
+
+## US32–US33 — compact Overview and guest plan editors
+
+Issues: https://github.com/greatng/wherewhere/issues/32 and https://github.com/greatng/wherewhere/issues/33
+
+The English stories and numbered criteria are in [compact-overview-and-editors.md](stories/compact-overview-and-editors.md). Issues were opened before implementation. Overview replaces the visible Today tab; internal keys remain stable. Guest editors receive planning rights only, not administrative powers.

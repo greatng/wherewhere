@@ -102,3 +102,10 @@ New regressions cover daily/Accommodation editing using the same stay ID and suc
 [Mobile daily overview](../artifacts/mobile-chromium-plan-fixture-preview.png), [mobile Today](../artifacts/mobile-chromium-today-fixture-preview.png), [mobile Accommodation](../artifacts/mobile-chromium-accommodation-fixture-preview.png), and [dark daily overview](../artifacts/mobile-chromium-dark-plan-fixture-preview.png) are deterministic sample previews, not hosted traveler data.
 
 Final US24–US25 verification: lint and production build pass; twelve focused component/domain tests pass. The full browser suite completed with 37 of 38 passing; the mobile editor navigation case exposed competing smooth-scroll navigation during view switching. Editor navigation was changed to an immediate scroll. All twelve affected desktop/mobile editor and daily-overview cases then passed. The full 38-case suite was not repeated after that focused fix. Refreshed light/dark Today, daily Plan and Accommodation screenshots were inspected; the mobile Plan view choices fit on one row.
+
+
+## PWA update regression and live-origin investigation
+
+The live `roam.greatng.me` bundle contained US25 date controls. All ten daily-overview browser cases passed against its deployed JavaScript with fixture-only intercepted API responses and service workers blocked. No real traveler data or authentication was changed.
+
+A separate production-build reproduction confirmed that the old app could have a newer waiting worker with no update action. `npm run test:pwa` now verifies update detection, reopening while an update waits, user-triggered activation/reload, and preservation of a local storage marker and a synthetic queued expense. It does not clear user storage or force an update during editing. The captured prompt is [PWA update preview](../artifacts/pwa-update-fixture-preview.png). The user's private cached client state remains unverified.

@@ -17,6 +17,7 @@ import QRCode from "qrcode";
 import { supabase as db } from "../../shared/supabase/client";
 import { TripActivity } from "./TripActivity";
 import { ThemeToggle } from "../../shared/ThemeToggle";
+import { PwaUpdate } from "../../shared/PwaUpdate";
 import {
   cacheTripData,
   clearAllLocalData,
@@ -231,6 +232,7 @@ export function App() {
         </Button>
         <ThemeToggle thai={thai.value} />
       </header>
+      <PwaUpdate thai={thai.value} />
       <main>
         {uid && (
           <section class="account-menu" aria-label={t("Account", "บัญชี")}>

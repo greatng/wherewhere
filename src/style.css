@@ -1190,3 +1190,14 @@ button.theme-toggle {
   .plan-view-toggle { flex-wrap: nowrap; }
   .plan-view-toggle button { flex: 1; min-width: 0; margin-inline: 0; padding-inline: 0.45rem; font-size: 0.9rem; }
 }
+.pwa-update-notice {
+  margin: 0.75rem auto;
+  max-width: 1080px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--moss-dark);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.pwa-update-notice p { margin: 0.25rem 0 0.6rem; }

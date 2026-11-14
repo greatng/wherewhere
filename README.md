@@ -96,3 +96,12 @@ Participant check-in and attendance controls have been retired. Historical serve
 Plan's Daily overview groups each date's overnight city, hotel and activities together. The separate Accommodation view lists stays. Organizers can open the same version-checked accommodation editor from either view; a multi-night edit affects the displayed stay range, not a duplicate booking. Check-out dates are exclusive.
 
 Today includes previous/next controls and an itinerary-date field. It defaults to destination-local today during the trip, the first day before departure, and the last day afterward. The selected day shows its city, hotel, directions and complete itinerary; free days still show accommodation and the next planned activity date when available. Current/next highlights apply only to the actual destination-local today. English user stories: [US24 and US25](docs/stories/daily-overviews.md).
+
+
+## Receiving app updates
+
+When a newer PWA worker is waiting, Roam shows **Update app**. Save any open form before applying it; the app activates the waiting worker and reloads only after you choose to update. Identity storage and pending offline operations are retained. Focus/online events check for updates.
+
+Older installed versions did not include this notice. If the web deployment is current but controls are missing, close every Roam browser tab and installed-app window, then reopen the app. Do not clear browser storage or site data: anonymous session identity can be lost. Reloading a page alone may leave the older worker waiting while another tab remains open.
+
+Run `npm run test:pwa` to build and verify actual production service-worker installation, waiting update discovery on launch, explicit activation/reload, and retention of a storage marker and queued expense. It uses an isolated local browser profile and synthetic data. CI runs the same script against its generated build.

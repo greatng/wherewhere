@@ -185,3 +185,12 @@ US23 verification: AC1–AC2 pass participant/Senior browser assertions and abse
 ## US24–US25 — daily stay and activity overviews
 
 The two English user stories and acceptance criteria are documented in [daily-overviews.md](stories/daily-overviews.md), linked to issues #24 and #25. Stories were opened before implementation.
+
+
+## US26 — receive waiting app updates
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/26
+
+As an installed-app user, I can see and explicitly apply a waiting app update without clearing identity or queued operations. AC1 detects waiting workers at launch and after installation; AC2 warns to save edits and reloads only after user-requested activation; AC3 checks on focus/online and handles unsupported registration; AC4 proves production-worker behavior and retained storage/outbox data. A red production reproduction confirmed a waiting worker with no update UI before this change.
+
+US25 live investigation: `https://roam.greatng.me` served the date-browser code. Ten desktop/mobile daily-overview tests passed against that deployed JavaScript with intercepted synthetic REST data and service workers blocked. This verifies the origin code, not the user's private session or trip data. The missing PWA update notice is a separate confirmed defect; stale user cache remains a plausible but unverified explanation for the report.

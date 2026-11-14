@@ -123,7 +123,7 @@ export function GuestRecovery({
           </summary>
           <p>
             {t(
-              "The selected old member keeps their expenses and check-ins. Access moves to the requesting device; the old device loses this trip.",
+              "The selected old member keeps their expenses and history. Access moves to the requesting device; the old device loses this trip.",
               "สมาชิกเดิมยังคงประวัติค่าใช้จ่ายและเช็กอิน สิทธิ์จะย้ายไปอุปกรณ์ที่ขอ และอุปกรณ์เดิมจะหมดสิทธิ์ในทริปนี้",
             )}
           </p>

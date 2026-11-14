@@ -329,31 +329,6 @@ export function TripActivity({
       return (data ?? []) as unknown as ExpenseRevision[];
     },
   });
-  const checkInsQuery = useQuery({
-    queryKey: ["checkins", uid, trip.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("check_ins")
-        .select("*")
-        .eq("trip_id", trip.id)
-        .order("checked_in_at", { ascending: false });
-      if (error && mayUseOfflineCache(error)) {
-        const local = await readCachedTripData<
-          Array<{
-            id: string;
-            trip_member_id: string;
-            itinerary_item_id: string;
-            checked_in_at: string;
-          }>
-        >(uid, trip.id, "checkins");
-        if (local) return local;
-      }
-      if (error) throw error;
-      const rows = data ?? [];
-      await cacheTripData(uid, trip.id, "checkins", rows);
-      return rows;
-    },
-  });
   const tonightDate = (() => {
     const date = new Intl.DateTimeFormat("en-CA", {
       timeZone: destinationTimezone,
@@ -599,7 +574,6 @@ export function TripActivity({
     const refresh = () => {
       void itineraryQuery.refetch();
       void expensesQuery.refetch();
-      void checkInsQuery.refetch();
       void settlementsQuery.refetch();
       void serverBalancesQuery.refetch();
     };
@@ -608,7 +582,6 @@ export function TripActivity({
   }, [
     itineraryQuery.refetch,
     expensesQuery.refetch,
-    checkInsQuery.refetch,
     settlementsQuery.refetch,
     serverBalancesQuery.refetch,
   ]);
@@ -734,31 +707,6 @@ export function TripActivity({
         : tr("Payment confirmed.", "ยืนยันการชำระแล้ว"),
     );
     if (!error) window.dispatchEvent(new Event("travelmate-data-updated"));
-  }
-  async function checkIn(item: Item) {
-    if (!me) return;
-    const op = id();
-    const payload = {
-      p_trip_id: trip.id,
-      p_member_id: me.id,
-      p_item_id: item.id,
-      p_operation_id: op,
-    };
-    await queueOperation({
-      id: op,
-      ownerId: uid,
-      tripId: trip.id,
-      kind: "check_in",
-      payload,
-    });
-    await refreshOutbox();
-    setNotice(
-      tr(
-        "Saved locally. Waiting for server confirmation.",
-        "บันทึกแล้ว กำลังรอการยืนยันจากเซิร์ฟเวอร์",
-      ),
-    );
-    if (navigator.onLine) window.dispatchEvent(new Event("travelmate-sync"));
   }
   async function saveExpense(e: Event) {
     e.preventDefault();
@@ -965,7 +913,7 @@ export function TripActivity({
             <article class="offline-operation" key={op.id}>
               <strong>
                 {op.kind === "check_in"
-                  ? tr("Check-in", "เช็กอิน")
+                  ? tr("Previous check-in", "เช็กอินเดิม")
                   : tr("Expense", "ค่าใช้จ่าย")}
               </strong>
               <span>
@@ -1152,15 +1100,6 @@ export function TripActivity({
                 >
                   {tr("Open directions", "เปิดเส้นทางในแผนที่")}
                 </a>
-                {me && (
-                  <Button
-                    class="checkin"
-                    type="button"
-                    onClick={() => void checkIn(heroStop)}
-                  >
-                    {tr("I'm Here", "ฉันมาถึงแล้ว")}
-                  </Button>
-                )}
               </>
             ) : today.state === "active" ? (
               <p>{tr("No stops added yet.", "ยังไม่มีจุดหมาย")}</p>
@@ -1231,11 +1170,6 @@ export function TripActivity({
                   )}
                   {item.address && <p>{item.address}</p>}
                   {item.notes && <p>{item.notes}</p>}
-                  {!organizer && me && (
-                    <Button type="button" onClick={() => void checkIn(item)}>
-                      {tr("I'm Here", "ฉันมาถึงแล้ว")}
-                    </Button>
-                  )}
                   {organizer && !senior && (
                     <>
                       <Button
@@ -1419,69 +1353,6 @@ export function TripActivity({
                     )}
                   </form>
                 </details>
-              )}
-              <h3>{tr("Who's checked in", "ใครเช็กอินแล้ว")}</h3>
-              {checkInsQuery.isError ? (
-                <p role="status">
-                  {tr(
-                    "Attendance unavailable offline. Reconnect to refresh.",
-                    "ข้อมูลเช็กอินยังดูไม่ได้ขณะออฟไลน์ กรุณาเชื่อมต่อเพื่อโหลดใหม่",
-                  )}
-                </p>
-              ) : (
-                <>
-                  {(offline || usingCache) && (
-                    <p role="status" class="pending">
-                      {tr(
-                        "Attendance is saved on this device and may be out of date.",
-                        "ข้อมูลการเช็กอินบันทึกไว้ในอุปกรณ์นี้และอาจไม่ใช่ข้อมูลล่าสุด",
-                      )}
-                    </p>
-                  )}
-                  <p>
-                    {heroStop
-                      ? approved.filter((m) =>
-                          checkInsQuery.data?.some(
-                            (c) =>
-                              c.trip_member_id === m.id &&
-                              c.itinerary_item_id === heroStop.id,
-                          ),
-                        ).length
-                      : 0}{" "}
-                    / {approved.length}{" "}
-                    {tr("checked in for this stop", "เช็กอินสำหรับจุดหมายนี้")}
-                  </p>
-                  {approved.map((m) => (
-                    <p class="attendance" key={m.id}>
-                      {m.display_name} —{" "}
-                      {(() => {
-                        const acknowledgement = checkInsQuery.data?.find(
-                          (c) =>
-                            c.trip_member_id === m.id &&
-                            c.itinerary_item_id === heroStop?.id,
-                        );
-                        return acknowledgement ? (
-                          <>
-                            {tr("Checked in", "เช็กอินแล้ว")}{" "}
-                            {acknowledgement.checked_in_at && (
-                              <time dateTime={acknowledgement.checked_in_at}>
-                                {new Date(
-                                  acknowledgement.checked_in_at,
-                                ).toLocaleString(thai ? "th-TH" : "en", {
-                                  dateStyle: "medium",
-                                  timeStyle: "short",
-                                  timeZone: destinationTimezone,
-                                })}
-                              </time>
-                            )}
-                          </>
-                        ) : (
-                          tr("Not checked in", "ยังไม่เช็กอิน")
-                        );
-                      })()}
-                    </p>
-                  ))}
-                </>
               )}
             </>
           )}

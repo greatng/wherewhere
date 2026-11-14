@@ -1,6 +1,6 @@
 # Browser previews and verification notes
 
-Install the browser once with `npx playwright install chromium`, then run `npm run test:e2e`. Playwright launches local Vite and runs the same mocked trip flows in desktop and mobile Chromium. The fixture provides seeded email and guest sessions plus a sample Bangkok trip through intercepted Supabase REST/RPC calls. It verifies explicit one-trip selection, trip creation, a three-night destination range and middle-night correction, accommodation and daily activities, whole-unit expense splits and correction, Trip-tab management and title-confirmed deletion, safe account sign-out, persisted Senior view, and an offline queue item that fails once and succeeds on retry with the same operation ID. A fixed Bangkok clock and sample stops from both the previous and current trip day make Today behavior reproducible.
+Install the browser once with `npx playwright install chromium`, then run `npm run test:e2e`. Playwright launches local Vite and runs the same mocked trip flows in desktop and mobile Chromium. The fixture provides seeded email and guest sessions plus a sample Bangkok trip through intercepted Supabase REST/RPC calls. It verifies explicit one-trip selection, trip creation, a three-night destination range and middle-night correction, accommodation and daily activities, whole-unit expense splits and correction, Trip-tab management and title-confirmed deletion, safe account sign-out, persisted Senior view, and offline expense queue replay including retry with the same operation ID. Participant and Senior flows assert that check-in and attendance controls are absent and no `check_ins` query or `check_in` RPC is made. A fixed Bangkok clock and sample stops from both the previous and current trip day make Today behavior reproducible.
 
 These screenshots are fixture-backed previews. They show the UI at desktop and mobile viewports; they do not represent a hosted Supabase session, live trip, or real user data.
 
@@ -62,7 +62,7 @@ The focused theme and preview tests passed in desktop and mobile Chromium, and t
 
 ![Mobile Senior view fixture preview](../artifacts/mobile-chromium-senior-fixture-preview.png)
 
-## Offline queue
+## Offline expense queue
 
 ![Desktop offline queue fixture preview](../artifacts/desktop-chromium-offline-queue-fixture-preview.png)
 
@@ -86,7 +86,7 @@ The refreshed Plan previews show destination nights, activities, and stays as fl
 
 Destination-time regressions run with an America/Los_Angeles browser and an Asia/Bangkok trip. They verify that 09:30 in Bangkok saves as 02:30Z and displays and edits as 09:30 in both Today and Plan, regardless of the browser timezone. A legacy Nov 2 02:00Z activity stays on Nov 2 at 09:00 Bangkok time after an unchanged save. Trip creation saves its IANA timezone, and changing it updates display/edit values while preserving the stored timestamp. Plan regressions check that row action buttons contain SVG icons with no visible text while retaining accessible Edit and Remove names. The preview test also checks that Today, Plan, Expenses, and Trip have no horizontal overflow at both viewport sizes.
 
-The focused desktop/mobile browser verification passed 10/10 cases: account Appearance (2), dark tab previews (2), enrolled itinerary and expense actions (2), Plan editors (2), and trip creation/archive/deletion (2). The account test checks the default System selection, explicit Dark persistence, and live system changes after returning to System. One earlier combined focused run had a transient mobile timeout in the dark tab capture; the identical test passed on isolated retry. The full desktop/mobile suite has not been rerun for this change.
+The existing focused desktop/mobile verification passed 10/10 cases: account Appearance (2), dark tab previews (2), enrolled itinerary and expense actions (2), Plan editors (2), and trip creation/archive/deletion (2). The account test checks the default System selection, explicit Dark persistence, and live system changes after returning to System. One earlier combined focused run had a transient mobile timeout in the dark tab capture; the identical test passed on isolated retry. For Issue 23, the offline expense, main trip, Senior view, and Today preview checks passed 10/10 desktop/mobile cases; after adding explicit directions and itinerary assertions, the affected main trip and Senior checks passed 4/4. The full desktop/mobile suite has not been rerun.
 
 ## Remaining release verification
 

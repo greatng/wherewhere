@@ -166,12 +166,11 @@ async function installFixture(
       ],
     },
   ];
-  let checkIns: Record<string, unknown>[] = [];
   let savedExpense: FixtureRpcArgs | undefined;
-  let savedCheckIn: FixtureRpcArgs | undefined;
-  let failCheckInOnce = false;
+  let failExpenseOnce = false;
   let savedCorrection: FixtureRpcArgs | undefined;
   const rpcCalls: { fn: string; args: FixtureRpcArgs }[] = [];
+  const restRequests: { method: string; table: string }[] = [];
 
   await page.addInitScript(
     ({ uid, token, guest }) => {
@@ -203,6 +202,7 @@ async function installFixture(
   await page.route("**/rest/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const table = url.pathname.split("/").pop() ?? "";
+    restRequests.push({ method: route.request().method(), table });
     let data: unknown[] = [];
     if (table === "trips") data = trips;
     if (table === "trip_members") data = members;
@@ -211,7 +211,6 @@ async function installFixture(
     if (table === "nightly_destinations") data = nights;
     if (table === "stays") data = stays;
     if (table === "expenses") data = expenses;
-    if (table === "check_ins") data = checkIns;
     if (table === "emergency_cards") data = emergencyCards;
     const from = Number(route.request().headers()["range"]?.split("-")[0] ?? 0);
     const to = Number(
@@ -235,8 +234,8 @@ async function installFixture(
     const fn = new URL(route.request().url()).pathname.split("/").pop();
     const args = route.request().postDataJSON() as FixtureRpcArgs;
     rpcCalls.push({ fn: fn ?? "", args });
-    if (fn === "check_in" && failCheckInOnce) {
-      failCheckInOnce = false;
+    if (fn === "create_expense" && failExpenseOnce) {
+      failExpenseOnce = false;
       await route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -369,19 +368,6 @@ async function installFixture(
       };
       trips.push(created);
       result = created.id;
-    } else if (fn === "check_in") {
-      savedCheckIn = args;
-      checkIns = [
-        ...checkIns,
-        {
-          id: "check-1",
-          trip_id: tripId,
-          trip_member_id: args.p_member_id,
-          itinerary_item_id: args.p_item_id,
-          checked_in_at: new Date().toISOString(),
-        },
-      ];
-      result = checkIns[0];
     }
     await route.fulfill({
       status: 200,
@@ -391,18 +377,18 @@ async function installFixture(
   });
   return {
     getSavedExpense: () => savedExpense,
-    getSavedCheckIn: () => savedCheckIn,
     getSavedCorrection: () => savedCorrection,
     getRpcCalls: () => rpcCalls,
+    getRestRequests: () => restRequests,
     getStays: () => stays,
-    failNextCheckIn: () => {
-      failCheckInOnce = true;
+    failNextExpense: () => {
+      failExpenseOnce = true;
     },
-    getCheckInOperationIds: () =>
+    getExpenseOperationIds: () =>
       rpcCalls
-        .filter((call) => call.fn === "check_in")
+        .filter((call) => call.fn === "create_expense")
         .map((call) => call.args.p_operation_id),
-    getCheckInCount: () => checkIns.length,
+    getExpenseCount: () => expenses.length,
   };
 }
 
@@ -453,15 +439,19 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
       .locator('[aria-pressed="true"]'),
   ).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Wat Arun" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open directions" })).toHaveAttribute(
+    "href",
+    /google\.com\/maps\/(dir|search)\//,
+  );
+  await expect(page.getByRole("heading", { name: "Itinerary" })).toBeVisible();
   const todayCard = page.locator(".next-stop");
   await expect(todayCard).toContainText("Current stop");
   await expect(todayCard).toContainText("Wat Arun");
   await expect(todayCard).toContainText("Next stop");
   await expect(todayCard).toContainText("Chatuchak Market");
   await expect(todayCard).not.toContainText("Old Town Walk");
-  await expect(
-    page.getByText("Niran — Not checked in", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /i'm here|check.?in|attendance/i })).toHaveCount(0);
+  await expect(page.getByText(/checked in|attendance/i)).toHaveCount(0);
 
   const destination = page.getByLabel("Place or activity");
   await page.locator(".stop-editor summary").click();
@@ -526,6 +516,8 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
     expect.any(String),
   );
   await expect(page.getByText("Airport taxi", { exact: true })).toBeVisible();
+  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
+  expect(fixtureState.getRpcCalls().some(({ fn }) => fn === "check_in")).toBe(false);
 
   const addedExpense = page
     .locator("article.stop")
@@ -1061,17 +1053,22 @@ test("trip creation carries its date range; archive and restore work; wrong dele
     .toEqual({ p_trip_id: tripId, p_confirmation_title: "Bangkok Weekend" });
 });
 
-test("offline check-in stays queued until reconnect, then receives fixture acknowledgement", async ({
+test("offline expense stays queued until reconnect, then receives fixture acknowledgement", async ({
   page,
   context,
 }) => {
   const fixtureState = await installFixture(page);
   await page.goto("/");
   await openTrip(page);
-  await expect(page.getByRole("heading", { name: "Wat Arun" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Expenses" }).click();
 
   await context.setOffline(true);
-  await page.getByRole("button", { name: "I'm Here" }).click();
+  await page.locator(".expense-entry > summary").click();
+  const expenseEntry = page.locator(".expense-entry");
+  await expenseEntry.getByLabel("What was it for?").fill("Offline noodles");
+  await expenseEntry.getByLabel("Amount (THB)").fill("42.00");
+  await expenseEntry.getByRole("button", { name: "Save expense" }).click();
   await expect(
     page
       .getByRole("status")
@@ -1080,7 +1077,7 @@ test("offline check-in stays queued until reconnect, then receives fixture ackno
   await expect(
     page.getByRole("status").filter({ hasText: "1 item(s) waiting to send" }),
   ).toBeVisible();
-  await expect.poll(() => fixtureState.getSavedCheckIn()).toBeUndefined();
+  await expect.poll(() => fixtureState.getSavedExpense()).toBeUndefined();
 
   await context.setOffline(false);
   await expect(
@@ -1090,24 +1087,34 @@ test("offline check-in stays queued until reconnect, then receives fixture ackno
     page.getByRole("status").filter({ hasText: "1 item(s) waiting to send" }),
   ).toHaveCount(0);
   await expect
-    .poll(() => fixtureState.getSavedCheckIn())
+    .poll(() => fixtureState.getSavedExpense())
     .toMatchObject({
       p_trip_id: tripId,
-      p_member_id: alice,
-      p_item_id: "stop-next",
+      p_payer_member_id: alice,
+      p_description: "Offline noodles",
+      p_amount_minor: "4200",
     });
+  expect(fixtureState.getSavedExpense()?.p_operation_id).toEqual(expect.any(String));
+  expect(fixtureState.getExpenseCount()).toBe(2);
+  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
 });
 
-test("failed offline action can be inspected and retried with its original ID", async ({
+test("failed offline expense can be inspected and retried with its original ID", async ({
   page,
   context,
 }, testInfo) => {
   const fixtureState = await installFixture(page);
   await page.goto("/");
   await openTrip(page);
-  fixtureState.failNextCheckIn();
+  await page.getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Expenses" }).click();
+  fixtureState.failNextExpense();
   await context.setOffline(true);
-  await page.getByRole("button", { name: "I'm Here" }).click();
+  await page.locator(".expense-entry > summary").click();
+  const expenseEntry = page.locator(".expense-entry");
+  await expenseEntry.getByLabel("What was it for?").fill("Retry noodles");
+  await expenseEntry.getByLabel("Amount (THB)").fill("25.00");
+  await expenseEntry.getByRole("button", { name: "Save expense" }).click();
   await context.setOffline(false);
   const queue = page.locator(".offline-queue");
   await queue.locator("summary").click();
@@ -1117,15 +1124,16 @@ test("failed offline action can be inspected and retried with its original ID", 
     path: `artifacts/${testInfo.project.name}-offline-queue-fixture-preview.png`,
     style: "header, .activity-tabs { position: static !important; }",
   });
-  const originalId = fixtureState.getCheckInOperationIds()[0];
+  const originalId = fixtureState.getExpenseOperationIds()[0];
   expect(originalId).toEqual(expect.any(String));
   await operation.getByRole("button", { name: "Retry" }).click();
   await expect(operation).toHaveCount(0);
-  expect(fixtureState.getCheckInOperationIds()).toEqual([
+  expect(fixtureState.getExpenseOperationIds()).toEqual([
     originalId,
     originalId,
   ]);
-  expect(fixtureState.getCheckInCount()).toBe(1);
+  expect(fixtureState.getExpenseCount()).toBe(2);
+  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
 });
 
 test("guest account warns before sign-out and can stay signed in", async ({
@@ -1160,7 +1168,7 @@ test("email account confirms sign-out of this device", async ({ page }) => {
 test("Senior view persists on this device and hides editing tabs", async ({
   page,
 }, testInfo) => {
-  await installFixture(page);
+  const fixtureState = await installFixture(page);
   await page.goto("/");
   await page.screenshot({
     path: `artifacts/${testInfo.project.name}-dashboard-fixture-preview.png`,
@@ -1171,15 +1179,20 @@ test("Senior view persists on this device and hides editing tabs", async ({
   await expect(
     page.getByRole("button", { name: "Exit senior view" }),
   ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open directions" })).toHaveAttribute(
+    "href",
+    /google\.com\/maps\/(dir|search)\//,
+  );
   const tabs = page.getByRole("navigation", { name: "Trip sections" });
   await expect(tabs.getByRole("button", { name: "Plan" })).toHaveCount(0);
   await expect(tabs.getByRole("button", { name: "Expenses" })).toHaveCount(0);
   await expect(tabs).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit stop" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Itinerary" })).toHaveCount(0);
-  await expect(
-    page.getByText("Niran — Not checked in", { exact: true }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /i'm here|check.?in|attendance/i })).toHaveCount(0);
+  await expect(page.getByText(/checked in|attendance/i)).toHaveCount(0);
+  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
+  expect(fixtureState.getRpcCalls().some(({ fn }) => fn === "check_in")).toBe(false);
   await page.locator(".activity").screenshot({
     path: `artifacts/${testInfo.project.name}-senior-fixture-preview.png`,
     style: "header, .activity-tabs { position: static !important; }",

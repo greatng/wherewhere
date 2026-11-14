@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Button } from "./Button";
 import { ActionIcon } from "../ActionIcon";
 
@@ -31,13 +31,15 @@ export function OverflowMenu({
         ) as HTMLButtonElement | null
       )?.focus();
   };
-  useEffect(() => {
+  // Focus before paint: a delayed opening effect could steal restored Escape focus.
+  useLayoutEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) close();
     };
     document.addEventListener("pointerdown", outside);
-    const menuItems = menu.current?.querySelectorAll<HTMLButtonElement>("button");
+    const menuItems =
+      menu.current?.querySelectorAll<HTMLButtonElement>("button");
     menuItems?.[focusIndex.current]?.focus();
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);

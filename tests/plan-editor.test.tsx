@@ -117,6 +117,7 @@ describe("Plan editors", () => {
     expect(await screen.findByRole("heading", { name: "Add activity" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
+    fireEvent.click(screen.getByRole("button", { name: "Accommodation" }));
     fireEvent.click(screen.getByRole("button", { name: "Add accommodation" }));
     const stayEditor = await screen.findByRole("heading", { name: "Add accommodation" });
     expect(document.activeElement).toBe(stayEditor.parentElement);
@@ -127,9 +128,9 @@ describe("Plan editors", () => {
 
   it("opens a prefilled accommodation editor from its closed state", async () => {
     renderPlan();
-    await screen.findByText("Old hotel");
+    await screen.findAllByText("Old hotel");
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit accommodation" })[0]);
 
     expect(await screen.findByRole("heading", { name: "Edit accommodation" })).toBeTruthy();
     expect(screen.getByDisplayValue("Old hotel")).toBeTruthy();
@@ -143,6 +144,22 @@ describe("Plan editors", () => {
       p_expected_version: 7,
       p_name: "New hotel",
     })));
+  });
+
+  it("shows a stay on every covered day and excludes the check-out day", async () => {
+    renderPlan();
+    await screen.findAllByText("Old hotel");
+    const days = await screen.findAllByRole("article");
+    const coveredDay = days.find((day) => day.textContent?.includes("Day 2"));
+    const checkoutDay = days.find((day) => day.textContent?.includes("Day 3"));
+    expect(coveredDay?.textContent).toContain("Old hotel");
+    expect(checkoutDay?.textContent).not.toContain("Old hotel");
+    fireEvent.click(screen.getByRole("button", { name: "Accommodation" }));
+    expect(screen.getByText("Old hotel")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit accommodation" })[0]);
+    expect(await screen.findByRole("heading", { name: "Edit accommodation" })).toBeTruthy();
+    expect(screen.getByLabelText("Check-in")).toHaveValue("2026-11-01");
+    expect(screen.getByLabelText("Check-out (exclusive)")).toHaveValue("2026-11-03");
   });
 
   it("edits and saves activity time in the destination timezone", async () => {

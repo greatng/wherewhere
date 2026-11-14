@@ -180,3 +180,8 @@ GitHub issue: https://github.com/greatng/wherewhere/issues/23
 As a traveler, I follow plans and directions without manual attendance work. AC1 removes participant and Senior check-in controls plus attendance lists/counts. AC2 removes check-in queries and new action production. AC3 preserves historical backend records and inspectable legacy outbox entries with idempotent replay. AC4 preserves offline expenses, directions, itinerary editing, destination times, member administration and accommodation check-in dates. Existing stories describing attendance are historical and superseded by this requirement. No destructive schema changes; Upcoming day browsing remains separate scope.
 
 US23 verification: AC1–AC2 pass participant/Senior browser assertions and absence of check-in fetch/production code. AC3 preserves legacy outbox replay and historical backend records; thirteen offline/domain tests pass. AC4 passes directions, itinerary and expense queue/retry flows. Ten focused desktop/mobile cases passed; four directions-strengthened cases also passed on rerun. Lint/build pass. Hosted data is unchanged; no migration required.
+
+
+## US24–US25 — daily stay and activity overviews
+
+The two English user stories and acceptance criteria are documented in [daily-overviews.md](stories/daily-overviews.md), linked to issues #24 and #25. Stories were opened before implementation.

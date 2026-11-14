@@ -20,14 +20,20 @@ import {
 } from "../expenses/money";
 import Plan from "../plan/Plan";
 import { tripWallTimeToIso } from "../plan/timezone";
-import { formatDateLabel } from "../plan/dates";
+import { addCalendarDays, formatDateLabel } from "../plan/dates";
+import { stayForDate } from "../plan/day";
 import {
   claimOperation,
   discardOperation,
   queuedOperationCount,
   retryOperation,
 } from "../offline/actions";
-import { todayStops, stopsForTripDay } from "./today";
+import {
+  clampTripDate,
+  todayStops,
+  stopsForTripDay,
+  tripDateAt,
+} from "./today";
 import { revealEditor } from "../../shared/editor-navigation";
 
 function revealOpenEditor(event: Event) {
@@ -329,31 +335,19 @@ export function TripActivity({
       return (data ?? []) as unknown as ExpenseRevision[];
     },
   });
-  const tonightDate = (() => {
-    const date = new Intl.DateTimeFormat("en-CA", {
-      timeZone: destinationTimezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
-    return date < trip.start_date
-      ? trip.start_date
-      : date > trip.end_date
-        ? trip.end_date
-        : date;
-  })();
-  const tripToday = new Intl.DateTimeFormat("en-CA", {
-    timeZone: destinationTimezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  const tonightLabel =
-    tripToday < trip.start_date
-      ? tr("First planned night", "คืนแรกตามแผน")
-      : tripToday > trip.end_date
-        ? tr("Last planned night", "คืนสุดท้ายตามแผน")
-        : tr("Tonight", "คืนนี้");
+  const actualToday = tripDateAt(new Date(), destinationTimezone);
+  const [selectedDay, setSelectedDay] = useState(() =>
+    clampTripDate(actualToday, trip),
+  );
+  useEffect(() => {
+    setSelectedDay(
+      clampTripDate(tripDateAt(new Date(), destinationTimezone), trip),
+    );
+  }, [trip.id, trip.start_date, trip.end_date, destinationTimezone]);
+  const isActualToday = selectedDay === actualToday;
+  const dayLabel = isActualToday
+    ? tr("Today", "วันนี้")
+    : formatDateLabel(selectedDay, thai ? "th-TH" : "en");
   const tonightQuery = useQuery({
     queryKey: ["tonight", uid, trip.id],
     queryFn: async () => {
@@ -372,6 +366,8 @@ export function TripActivity({
           .eq("trip_id", trip.id)
           .order("check_in_date"),
       ]);
+      if (nightError && !mayUseOfflineCache(nightError)) throw nightError;
+      if (stayError && !mayUseOfflineCache(stayError)) throw stayError;
       if (
         (nightError && mayUseOfflineCache(nightError)) ||
         (stayError && mayUseOfflineCache(stayError))
@@ -381,14 +377,7 @@ export function TripActivity({
           readCachedTripData<StaySummary[]>(uid, trip.id, "stays"),
         ]);
         if (cachedNights || cachedStays)
-          return {
-            night: cachedNights?.find((x) => x.night_date === tonightDate),
-            stay: cachedStays?.find(
-              (x) =>
-                x.check_in_date <= tonightDate &&
-                x.check_out_date > tonightDate,
-            ),
-          };
+          return { nights: cachedNights ?? [], stays: cachedStays ?? [] };
       }
       if (nightError) throw nightError;
       if (stayError) throw stayError;
@@ -398,15 +387,15 @@ export function TripActivity({
         cacheTripData(uid, trip.id, "nightly_plan", nightRows),
         cacheTripData(uid, trip.id, "stays", stayRows),
       ]);
-      return {
-        night: nightRows.find((x) => x.night_date === tonightDate),
-        stay: stayRows.find(
-          (x) =>
-            x.check_in_date <= tonightDate && x.check_out_date > tonightDate,
-        ),
-      };
+      return { nights: nightRows, stays: stayRows };
     },
   });
+  const selectedNight = tonightQuery.data?.nights.find(
+    (night) => night.night_date === selectedDay,
+  );
+  const selectedStay = tonightQuery.data?.stays
+    ? stayForDate(tonightQuery.data.stays, selectedDay)
+    : undefined;
   const settlementsQuery = useQuery({
     queryKey: ["settlements", uid, trip.id],
     queryFn: async () => {
@@ -840,10 +829,19 @@ export function TripActivity({
     destinationTimezone,
     chosenStopId || undefined,
   );
-  const todayItems =
-    today.state === "trip-finished" || today.state === "before-trip"
-      ? []
-      : stopsForTripDay(items, today.day, destinationTimezone);
+  const todayItems = stopsForTripDay(items, selectedDay, destinationTimezone);
+  const nextPlannedDay = todayItems.length
+    ? undefined
+    : items
+        .map((item) =>
+          item.starts_at
+            ? tripDateAt(new Date(item.starts_at), destinationTimezone)
+            : item.plan_date,
+        )
+        .filter((day): day is string =>
+          Boolean(day && day > selectedDay && day <= trip.end_date),
+        )
+        .sort()[0];
   const upcoming = today.next;
   const current = today.current;
   const heroStop = chosenStopId ? (current ?? upcoming) : upcoming;
@@ -1021,117 +1019,171 @@ export function TripActivity({
         <Plan trip={trip} uid={uid} thai={thai} organizer={organizer} />
       ) : tab === "today" ? (
         <>
-          <div class="next-stop">
-            {today.state === "trip-finished" ? (
-              <strong>{tr("Trip finished", "จบทริปแล้ว")}</strong>
-            ) : today.state === "before-trip" ? (
-              <>
-                <strong>{tr("Trip starts", "ทริปเริ่ม")}</strong>
-                <p>{formatDateLabel(trip.start_date, thai ? "th-TH" : "en")}</p>
-              </>
-            ) : today.state === "day-finished" ? (
-              <strong>{tr("Today is finished", "วันนี้จบแล้ว")}</strong>
-            ) : null}
-            {current && !chosenStopId && !senior && (
-              <>
-                <strong>{tr("Current stop", "จุดหมายปัจจุบัน")}</strong>
-                <h3>{current.title}</h3>
-              </>
-            )}
-            {organizer && !senior && todayItems.length > 0 && (
-              <label>
-                {tr(
-                  "Current stop on this device",
-                  "จุดหมายปัจจุบันในอุปกรณ์นี้",
-                )}
-                <select
-                  value={chosenStopId}
-                  onChange={(e) => {
-                    const chosen = (e.currentTarget as HTMLSelectElement).value;
-                    setChosenStopId(chosen);
-                    if (chosen) localStorage.setItem(chosenStopKey, chosen);
-                    else localStorage.removeItem(chosenStopKey);
-                  }}
-                >
-                  <option value="">{tr("Automatic", "อัตโนมัติ")}</option>
-                  {todayItems.map((item) => (
-                    <option value={item.id}>{item.title}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {upcoming && !(chosenStopId && current) && (
-              <strong>{tr("Next stop", "จุดหมายถัดไป")}</strong>
-            )}
-            {heroStop ? (
-              <>
-                {chosenStopId && current && (
-                  <strong>
-                    {tr(
-                      "Current stop on this device",
-                      "จุดหมายปัจจุบันในอุปกรณ์นี้",
-                    )}
-                  </strong>
-                )}
-                <h3>{heroStop.title}</h3>
-                <p>
-                  {heroStop.starts_at
-                    ? new Date(heroStop.starts_at).toLocaleString(
-                        thai ? "th-TH" : "en",
-                        {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                          timeZone: destinationTimezone,
-                        },
-                      )
-                    : tr("Time to be confirmed", "รอยืนยันเวลา")}{" "}
-                </p>
-                {heroStop.address && <p>{heroStop.address}</p>}
-                {heroStop.meeting_info && <p>{heroStop.meeting_info}</p>}
-                <a
-                  class="map-link"
-                  href={
-                    heroStop.latitude != null && heroStop.longitude != null
-                      ? `https://www.google.com/maps/dir/?api=1&destination=${heroStop.latitude},${heroStop.longitude}`
-                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(heroStop.address || heroStop.title)}`
-                  }
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {tr("Open directions", "เปิดเส้นทางในแผนที่")}
-                </a>
-              </>
-            ) : today.state === "active" ? (
-              <p>{tr("No stops added yet.", "ยังไม่มีจุดหมาย")}</p>
-            ) : null}
+          <div class="day-browser">
+            <Button
+              type="button"
+              svgOnly
+              appearance="tertiary"
+              aria-label={tr("Previous day", "วันก่อนหน้า")}
+              disabled={selectedDay <= trip.start_date}
+              onClick={() => setSelectedDay(addCalendarDays(selectedDay, -1))}
+            >
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </Button>
+            <label>
+              <span>{tr("Itinerary date", "วันที่กำหนดการ")}</span>
+              <input
+                type="date"
+                aria-label={tr("Itinerary date", "วันที่กำหนดการ")}
+                min={trip.start_date}
+                max={trip.end_date}
+                value={selectedDay}
+                onChange={(event) =>
+                  setSelectedDay(
+                    clampTripDate(
+                      (event.currentTarget as HTMLInputElement).value,
+                      trip,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <Button
+              type="button"
+              svgOnly
+              appearance="tertiary"
+              aria-label={tr("Next day", "วันถัดไป")}
+              disabled={selectedDay >= trip.end_date}
+              onClick={() => setSelectedDay(addCalendarDays(selectedDay, 1))}
+            >
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </Button>
           </div>
+          <h2>{dayLabel}</h2>
+          {!isActualToday ? null : (
+            <div class="next-stop">
+              {today.state === "trip-finished" ? (
+                <strong>{tr("Trip finished", "จบทริปแล้ว")}</strong>
+              ) : today.state === "before-trip" ? (
+                <>
+                  <strong>{tr("Trip starts", "ทริปเริ่ม")}</strong>
+                  <p>
+                    {formatDateLabel(trip.start_date, thai ? "th-TH" : "en")}
+                  </p>
+                </>
+              ) : today.state === "day-finished" ? (
+                <strong>{tr("Today is finished", "วันนี้จบแล้ว")}</strong>
+              ) : null}
+              {current && !chosenStopId && !senior && (
+                <>
+                  <strong>{tr("Current stop", "จุดหมายปัจจุบัน")}</strong>
+                  <h3>{current.title}</h3>
+                </>
+              )}
+              {organizer && !senior && todayItems.length > 0 && (
+                <label>
+                  {tr(
+                    "Current stop on this device",
+                    "จุดหมายปัจจุบันในอุปกรณ์นี้",
+                  )}
+                  <select
+                    value={chosenStopId}
+                    onChange={(e) => {
+                      const chosen = (e.currentTarget as HTMLSelectElement)
+                        .value;
+                      setChosenStopId(chosen);
+                      if (chosen) localStorage.setItem(chosenStopKey, chosen);
+                      else localStorage.removeItem(chosenStopKey);
+                    }}
+                  >
+                    <option value="">{tr("Automatic", "อัตโนมัติ")}</option>
+                    {todayItems.map((item) => (
+                      <option value={item.id}>{item.title}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {upcoming && !(chosenStopId && current) && (
+                <strong>{tr("Next stop", "จุดหมายถัดไป")}</strong>
+              )}
+              {heroStop ? (
+                <>
+                  {chosenStopId && current && (
+                    <strong>
+                      {tr(
+                        "Current stop on this device",
+                        "จุดหมายปัจจุบันในอุปกรณ์นี้",
+                      )}
+                    </strong>
+                  )}
+                  <h3>{heroStop.title}</h3>
+                  <p>
+                    {heroStop.starts_at
+                      ? new Date(heroStop.starts_at).toLocaleString(
+                          thai ? "th-TH" : "en",
+                          {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                            timeZone: destinationTimezone,
+                          },
+                        )
+                      : tr("Time to be confirmed", "รอยืนยันเวลา")}{" "}
+                  </p>
+                  {heroStop.address && <p>{heroStop.address}</p>}
+                  {heroStop.meeting_info && <p>{heroStop.meeting_info}</p>}
+                  <a
+                    class="map-link"
+                    href={
+                      heroStop.latitude != null && heroStop.longitude != null
+                        ? `https://www.google.com/maps/dir/?api=1&destination=${heroStop.latitude},${heroStop.longitude}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(heroStop.address || heroStop.title)}`
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {tr("Open directions", "เปิดเส้นทางในแผนที่")}
+                  </a>
+                </>
+              ) : today.state === "active" ? (
+                <p>{tr("No stops added yet.", "ยังไม่มีจุดหมาย")}</p>
+              ) : null}
+            </div>
+          )}
           <section
             class="tonight-card"
             aria-label={tr(
-              "Tonight destination and accommodation",
-              "เมืองและที่พักคืนนี้",
+              "Selected day destination and accommodation",
+              "เมืองและที่พักของวันที่เลือก",
             )}
           >
-            <strong>{tonightLabel}</strong>
-            {tonightLabel !== tr("Tonight", "คืนนี้") && (
-              <time dateTime={tonightDate}>
-                {formatDateLabel(tonightDate, thai ? "th-TH" : "en")}
-              </time>
-            )}
+            <strong>{dayLabel}</strong>
+            <time dateTime={selectedDay}>
+              {formatDateLabel(selectedDay, thai ? "th-TH" : "en")}
+            </time>
             <p>
-              {tonightQuery.data?.night?.city ??
+              {selectedNight?.city ??
                 tr("City not set yet", "ยังไม่ได้กำหนดเมือง")}
             </p>
-            {tonightQuery.data?.stay ? (
+            {selectedStay ? (
               <>
-                <strong>{tonightQuery.data.stay.name}</strong>
-                {tonightQuery.data.stay.address && (
-                  <p>{tonightQuery.data.stay.address}</p>
-                )}
-                {tonightQuery.data.stay.phone && (
-                  <a href={`tel:${tonightQuery.data.stay.phone}`}>
+                <strong>{selectedStay.name}</strong>
+                {selectedStay.address && <p>{selectedStay.address}</p>}
+                <a
+                  class="map-link"
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedStay.address || selectedStay.name)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {tr("Accommodation directions", "เส้นทางไปที่พัก")}
+                </a>
+                {selectedStay.phone && (
+                  <a href={`tel:${selectedStay.phone}`}>
                     {tr("Call accommodation", "โทรหาที่พัก")}:{" "}
-                    {tonightQuery.data.stay.phone}
+                    {selectedStay.phone}
                   </a>
                 )}
               </>
@@ -1139,7 +1191,36 @@ export function TripActivity({
               <p>{tr("Accommodation not set yet", "ยังไม่ได้กำหนดที่พัก")}</p>
             )}
           </section>
-          {!senior && (
+          {itineraryQuery.isPending ? (
+            <p role="status">
+              {tr("Loading activities…", "กำลังโหลดกิจกรรม…")}
+            </p>
+          ) : itineraryQuery.isError && items.length === 0 ? (
+            <p role="alert">
+              {tr(
+                "Could not load itinerary. Try again when connected.",
+                "โหลดกำหนดการไม่ได้ กรุณาลองใหม่เมื่อเชื่อมต่ออินเทอร์เน็ต",
+              )}
+            </p>
+          ) : todayItems.length === 0 ? (
+            <p>
+              {tr("Free day", "วันว่าง")}
+              {nextPlannedDay && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <Button
+                    type="button"
+                    appearance="tertiary"
+                    onClick={() => setSelectedDay(nextPlannedDay)}
+                  >
+                    {tr("Next planned activity", "กิจกรรมถัดไป")}:{" "}
+                    {formatDateLabel(nextPlannedDay, thai ? "th-TH" : "en")}
+                  </Button>
+                </>
+              )}
+            </p>
+          ) : (
             <>
               <h3>{tr("Itinerary", "กำหนดการเดินทาง")}</h3>
               {itineraryQuery.isError && (
@@ -1151,7 +1232,10 @@ export function TripActivity({
                 </p>
               )}
               {todayItems.map((item, index) => (
-                <article class="stop" key={item.id}>
+                <article
+                  class={`stop ${isActualToday && today.current?.id === item.id ? "current-activity" : isActualToday && today.next?.id === item.id ? "next-activity" : ""}`}
+                  key={item.id}
+                >
                   <div>
                     <span class="stop-number">{index + 1}</span>
                     <strong>{item.title}</strong>
@@ -1170,11 +1254,24 @@ export function TripActivity({
                   )}
                   {item.address && <p>{item.address}</p>}
                   {item.notes && <p>{item.notes}</p>}
+                  <a
+                    class="map-link"
+                    href={
+                      item.latitude != null && item.longitude != null
+                        ? `https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address || item.title)}`
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {tr("Open directions", "เปิดเส้นทางในแผนที่")}
+                  </a>
                   {organizer && !senior && (
                     <>
                       <Button
                         type="button"
-                        svgOnly appearance="tertiary"
+                        svgOnly
+                        appearance="tertiary"
                         class="plan-icon-button"
                         aria-label={tr("Edit stop", "แก้ไขจุดหมาย")}
                         title={tr("Edit stop", "แก้ไขจุดหมาย")}
@@ -1195,7 +1292,8 @@ export function TripActivity({
                       </Button>
                       <Button
                         type="button"
-                        svgOnly appearance="tertiary"
+                        svgOnly
+                        appearance="tertiary"
                         class="plan-icon-button danger"
                         aria-label={tr("Delete stop", "ลบจุดหมาย")}
                         title={tr("Delete stop", "ลบจุดหมาย")}
@@ -1255,7 +1353,7 @@ export function TripActivity({
                                 editing.starts_at,
                                 destinationTimezone,
                               ).slice(0, 10)
-                            : (editing?.plan_date ?? tonightDate)
+                            : (editing?.plan_date ?? selectedDay)
                         }
                       />
                     </label>

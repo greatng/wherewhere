@@ -18,6 +18,17 @@ export function tripDateAt(date: Date, timezone: string) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+export function clampTripDate(
+  day: string,
+  trip: { start_date: string; end_date: string },
+) {
+  return day < trip.start_date
+    ? trip.start_date
+    : day > trip.end_date
+      ? trip.end_date
+      : day;
+}
+
 export function stopsForTripDay<T extends TodayStop>(
   items: T[],
   day: string,

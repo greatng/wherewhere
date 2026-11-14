@@ -89,3 +89,10 @@ The official `21st-dev/skill` workflow retrieved and integrated two real catalog
 
 
 Participant check-in and attendance controls have been retired. Historical server records remain intact. Previously queued check-in operations remain inspectable and can finish replaying with their original operation IDs; the current UI does not create new check-ins. Accommodation check-in/check-out dates are unrelated and remain available. No database migration is required for this removal.
+
+
+## Daily plan and accommodation
+
+Plan's Daily overview groups each date's overnight city, hotel and activities together. The separate Accommodation view lists stays. Organizers can open the same version-checked accommodation editor from either view; a multi-night edit affects the displayed stay range, not a duplicate booking. Check-out dates are exclusive.
+
+Today includes previous/next controls and an itinerary-date field. It defaults to destination-local today during the trip, the first day before departure, and the last day afterward. The selected day shows its city, hotel, directions and complete itinerary; free days still show accommodation and the next planned activity date when available. Current/next highlights apply only to the actual destination-local today. English user stories: [US24 and US25](docs/stories/daily-overviews.md).

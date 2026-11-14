@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { todayStops, stopsForTripDay } from "../src/features/trips/today";
+import {
+  clampTripDate,
+  todayStops,
+  stopsForTripDay,
+} from "../src/features/trips/today";
 
 const trip = { start_date: "2026-11-02", end_date: "2026-11-04" };
 const stops = [
@@ -25,6 +29,11 @@ const stops = [
 ];
 
 describe("Today stop selection", () => {
+  it("clamps the selected date to the inclusive trip range", () => {
+    expect(clampTripDate("2026-11-01", trip)).toBe(trip.start_date);
+    expect(clampTripDate("2026-11-03", trip)).toBe("2026-11-03");
+    expect(clampTripDate("2026-11-05", trip)).toBe(trip.end_date);
+  });
   it("uses the trip-local date, orders timestamps, and includes untimed day stops", () => {
     const result = todayStops(
       stops,

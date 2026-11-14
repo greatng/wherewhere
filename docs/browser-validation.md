@@ -91,3 +91,14 @@ The existing focused desktop/mobile verification passed 10/10 cases: account App
 ## Remaining release verification
 
 The browser fixture does not exercise deployed Supabase Auth or Edge Function networking, rate limiting through the production proxy, real organizer-assisted recovery, multiple real browser profiles, browser storage loss, or installed PWA behavior. Before release, repeat the README manual acceptance steps against a configured Supabase project and test installation, offline recovery, and persisted sessions on physical iOS and Android devices.
+
+
+## US24–US25 daily overviews
+
+Plan displays each day's city, hotel and activities. Accommodation is an alternate Plan view with the same version-checked stay editor. Today supports a bounded itinerary date and previous/next controls, with selected-day city/stay, full activity list, free days and next planned date. Senior view retains the complete selected-day itinerary without editing controls.
+
+New regressions cover daily/Accommodation editing using the same stay ID and successive versions, check-in-inclusive/check-out-exclusive coverage, first/last default dates outside the trip, participant read-only access, and selected-day city/hotel/activity alignment. Fixture-only extended destinations/stays support adjacent-night transitions without changing the baseline fixture used for older flows.
+
+[Mobile daily overview](../artifacts/mobile-chromium-plan-fixture-preview.png), [mobile Today](../artifacts/mobile-chromium-today-fixture-preview.png), [mobile Accommodation](../artifacts/mobile-chromium-accommodation-fixture-preview.png), and [dark daily overview](../artifacts/mobile-chromium-dark-plan-fixture-preview.png) are deterministic sample previews, not hosted traveler data.
+
+Final US24–US25 verification: lint and production build pass; twelve focused component/domain tests pass. The full browser suite completed with 37 of 38 passing; the mobile editor navigation case exposed competing smooth-scroll navigation during view switching. Editor navigation was changed to an immediate scroll. All twelve affected desktop/mobile editor and daily-overview cases then passed. The full 38-case suite was not repeated after that focused fix. Refreshed light/dark Today, daily Plan and Accommodation screenshots were inspected; the mobile Plan view choices fit on one row.

@@ -3,11 +3,9 @@ export function revealEditor(element: HTMLElement | null) {
   if (!element) return;
   if (!element.hasAttribute("tabindex")) element.tabIndex = -1;
   element.focus({ preventScroll: true });
-  const reduceMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   element.scrollIntoView?.({
     block: "start",
-    behavior: reduceMotion ? "auto" : "smooth",
+    // Immediate navigation avoids competing scroll animations when switching views.
+    behavior: "instant",
   });
 }

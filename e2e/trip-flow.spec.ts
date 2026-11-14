@@ -43,8 +43,9 @@ type FixtureRpcArgs = {
 
 async function installFixture(
   page: import("@playwright/test").Page,
-  options: { guest?: boolean } = {},
+  options: { guest?: boolean; participant?: boolean; daily?: boolean } = {},
 ) {
+  const fixtureUid = options.participant ? bob : uid;
   const trip = {
     id: tripId,
     title: "Bangkok Weekend",
@@ -77,7 +78,7 @@ async function installFixture(
     {
       id: bob,
       trip_id: tripId,
-      user_id: null,
+      user_id: options.participant ? bob : null,
       display_name: "Niran",
       role: "member",
       status: "approved",
@@ -119,6 +120,20 @@ async function installFixture(
       version: 1,
       plan_date: "2026-11-02",
     },
+    ...(options.daily
+      ? [
+          {
+            id: "stop-future",
+            trip_id: tripId,
+            title: "Night Bazaar",
+            starts_at: "2026-11-04T02:00:00Z",
+            address: "Chiang Mai, Thailand",
+            position: 3,
+            version: 1,
+            plan_date: "2026-11-04",
+          },
+        ]
+      : []),
   ];
   let nights: Record<string, unknown>[] = [
     {
@@ -135,6 +150,24 @@ async function installFixture(
       transport_mode: "boat",
       version: 1,
     },
+    ...(options.daily
+      ? [
+          {
+            trip_id: tripId,
+            night_date: "2026-11-03",
+            city: "Chiang Mai",
+            transport_mode: "train",
+            version: 1,
+          },
+          {
+            trip_id: tripId,
+            night_date: "2026-11-04",
+            city: "Chiang Mai",
+            transport_mode: "train",
+            version: 1,
+          },
+        ]
+      : []),
   ];
   let stays: Record<string, unknown>[] = [
     {
@@ -147,6 +180,20 @@ async function installFixture(
       phone: "+66 2 123 4567",
       version: 1,
     },
+    ...(options.daily
+      ? [
+          {
+            id: "stay-2",
+            trip_id: tripId,
+            check_in_date: "2026-11-03",
+            check_out_date: "2026-11-05",
+            name: "Doi Hotel",
+            address: "2 Mountain Road",
+            phone: "+66 53 555 123",
+            version: 1,
+          },
+        ]
+      : []),
   ];
   let expenses: Record<string, unknown>[] = [
     {
@@ -196,7 +243,7 @@ async function installFixture(
       };
       localStorage.setItem("sb-127-auth-token", JSON.stringify(session));
     },
-    { uid, token, guest: !!options.guest },
+    { uid: fixtureUid, token, guest: !!options.guest },
   );
 
   await page.route("**/rest/v1/**", async (route) => {
@@ -439,10 +486,9 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
       .locator('[aria-pressed="true"]'),
   ).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Wat Arun" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open directions" })).toHaveAttribute(
-    "href",
-    /google\.com\/maps\/(dir|search)\//,
-  );
+  await expect(
+    page.locator(".next-stop").getByRole("link", { name: "Open directions" }),
+  ).toHaveAttribute("href", /google\.com\/maps\/(dir|search)\//);
   await expect(page.getByRole("heading", { name: "Itinerary" })).toBeVisible();
   const todayCard = page.locator(".next-stop");
   await expect(todayCard).toContainText("Current stop");
@@ -450,7 +496,9 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
   await expect(todayCard).toContainText("Next stop");
   await expect(todayCard).toContainText("Chatuchak Market");
   await expect(todayCard).not.toContainText("Old Town Walk");
-  await expect(page.getByRole("button", { name: /i'm here|check.?in|attendance/i })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /i'm here|check.?in|attendance/i }),
+  ).toHaveCount(0);
   await expect(page.getByText(/checked in|attendance/i)).toHaveCount(0);
 
   const destination = page.getByLabel("Place or activity");
@@ -461,7 +509,7 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
   const stopEditor = page.locator(".stop-editor");
   await stopEditor.getByLabel("Address").fill("Kamphaeng Phet 2 Road");
   await stopEditor.getByLabel("Notes").fill("Arrive before noon");
-  await page.getByLabel("Day").fill("2026-11-02");
+  await stopEditor.getByLabel("Day").fill("2026-11-02");
   await page.getByLabel("Destination time (optional)").fill("09:00");
   await page.getByLabel("Transport").selectOption("train");
   await page.getByRole("button", { name: "Save stop" }).click();
@@ -516,8 +564,14 @@ test("mocked enrolled itinerary and expense flow; keyboard and labels; preview c
     expect.any(String),
   );
   await expect(page.getByText("Airport taxi", { exact: true })).toBeVisible();
-  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
-  expect(fixtureState.getRpcCalls().some(({ fn }) => fn === "check_in")).toBe(false);
+  expect(
+    fixtureState
+      .getRestRequests()
+      .some(({ method, table }) => method === "GET" && table === "check_ins"),
+  ).toBe(false);
+  expect(fixtureState.getRpcCalls().some(({ fn }) => fn === "check_in")).toBe(
+    false,
+  );
 
   const addedExpense = page
     .locator("article.stop")
@@ -624,6 +678,8 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
       p_expected_versions: { "2026-11-02": 1 },
     });
 
+  const planViews = plan.getByRole("navigation", { name: "Plan view" });
+  await planViews.getByRole("button", { name: "Accommodation" }).click();
   await plan.getByRole("button", { name: "Add accommodation" }).click();
   await plan.getByLabel("Name", { exact: true }).fill("Riverside Hotel");
   await plan.getByLabel("Check-in").fill("2026-11-01");
@@ -647,12 +703,16 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
       p_expected_version: null,
     });
 
+  await planViews.getByRole("button", { name: "Daily overview" }).click();
   await plan
     .locator(".plan-night")
     .nth(1)
     .getByRole("button", { name: "Add activity" })
     .click();
-  await plan.getByLabel("Day").fill("2026-11-02");
+  await plan
+    .locator(".plan-activity-editor")
+    .getByLabel("Day")
+    .fill("2026-11-02");
   await plan
     .getByRole("textbox", { name: "Activity" })
     .fill("Doi Suthep visit");
@@ -691,7 +751,7 @@ test("trip plan saves inclusive night ranges, accommodation, and a timezone-awar
   await expect(
     createdActivity.getByRole("button", { name: "Remove" }),
   ).toBeVisible();
-  const planActions = plan.locator("button");
+  const planActions = plan.locator(".plan-nights button");
   await expect(planActions).not.toHaveCount(0);
   await expect(plan.locator(".plan-icon-button")).toHaveCount(
     await planActions.count(),
@@ -749,6 +809,8 @@ test.describe("Plan editor regressions", () => {
       .click();
     await expectInViewport(editNightForm.getByLabel("From (night of)"));
 
+    const planViews = plan.getByRole("navigation", { name: "Plan view" });
+    await planViews.getByRole("button", { name: "Accommodation" }).click();
     await plan.getByRole("button", { name: "Add accommodation" }).click();
     const addStayForm = plan.locator(".plan-stays form.plan-form");
     await expectInViewport(addStayForm.getByLabel("Name", { exact: true }));
@@ -820,6 +882,50 @@ test.describe("Plan editor regressions", () => {
     await expect(
       plan.locator(".plan-stay").filter({ hasText: "River House Updated" }),
     ).toBeVisible();
+
+    await planViews.getByRole("button", { name: "Accommodation" }).click();
+    const accommodation = plan.locator(".plan-stays");
+    const updatedStay = accommodation
+      .locator(".plan-stay")
+      .filter({ hasText: "River House Updated" });
+    await expect(updatedStay).toBeVisible();
+    await updatedStay
+      .getByRole("button", { name: "Edit accommodation" })
+      .click();
+    const accommodationEditor = accommodation.locator("form.plan-form");
+    await expect(
+      accommodationEditor.getByLabel("Name", { exact: true }),
+    ).toHaveValue("River House Updated");
+    await accommodationEditor
+      .getByLabel("Name", { exact: true })
+      .fill("River House Menu Edit");
+    await accommodationEditor
+      .getByRole("button", { name: "Save accommodation" })
+      .click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_stay")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_stay_id: "stay-1",
+        p_expected_version: 2,
+        p_name: "River House Menu Edit",
+      });
+    await expect
+      .poll(() => fixtureState.getStays().find((stay) => stay.id === "stay-1"))
+      .toMatchObject({
+        id: "stay-1",
+        name: "River House Menu Edit",
+        version: 3,
+      });
+    await planViews.getByRole("button", { name: "Daily overview" }).click();
+    await expect(
+      plan.locator(".plan-night").nth(1).locator(".plan-daily-stay"),
+    ).toContainText("River House Menu Edit");
 
     const addActivityButton = plan
       .locator(".plan-night")
@@ -1060,8 +1166,10 @@ test("offline expense stays queued until reconnect, then receives fixture acknow
   const fixtureState = await installFixture(page);
   await page.goto("/");
   await openTrip(page);
-  await page.getByRole("navigation", { name: "Trip sections" })
-    .getByRole("button", { name: "Expenses" }).click();
+  await page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Expenses" })
+    .click();
 
   await context.setOffline(true);
   await page.locator(".expense-entry > summary").click();
@@ -1094,9 +1202,15 @@ test("offline expense stays queued until reconnect, then receives fixture acknow
       p_description: "Offline noodles",
       p_amount_minor: "4200",
     });
-  expect(fixtureState.getSavedExpense()?.p_operation_id).toEqual(expect.any(String));
+  expect(fixtureState.getSavedExpense()?.p_operation_id).toEqual(
+    expect.any(String),
+  );
   expect(fixtureState.getExpenseCount()).toBe(2);
-  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
+  expect(
+    fixtureState
+      .getRestRequests()
+      .some(({ method, table }) => method === "GET" && table === "check_ins"),
+  ).toBe(false);
 });
 
 test("failed offline expense can be inspected and retried with its original ID", async ({
@@ -1106,8 +1220,10 @@ test("failed offline expense can be inspected and retried with its original ID",
   const fixtureState = await installFixture(page);
   await page.goto("/");
   await openTrip(page);
-  await page.getByRole("navigation", { name: "Trip sections" })
-    .getByRole("button", { name: "Expenses" }).click();
+  await page
+    .getByRole("navigation", { name: "Trip sections" })
+    .getByRole("button", { name: "Expenses" })
+    .click();
   fixtureState.failNextExpense();
   await context.setOffline(true);
   await page.locator(".expense-entry > summary").click();
@@ -1133,7 +1249,11 @@ test("failed offline expense can be inspected and retried with its original ID",
     originalId,
   ]);
   expect(fixtureState.getExpenseCount()).toBe(2);
-  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
+  expect(
+    fixtureState
+      .getRestRequests()
+      .some(({ method, table }) => method === "GET" && table === "check_ins"),
+  ).toBe(false);
 });
 
 test("guest account warns before sign-out and can stay signed in", async ({
@@ -1179,20 +1299,28 @@ test("Senior view persists on this device and hides editing tabs", async ({
   await expect(
     page.getByRole("button", { name: "Exit senior view" }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open directions" })).toHaveAttribute(
-    "href",
-    /google\.com\/maps\/(dir|search)\//,
-  );
+  await expect(
+    page.locator(".next-stop").getByRole("link", { name: "Open directions" }),
+  ).toHaveAttribute("href", /google\.com\/maps\/(dir|search)\//);
   const tabs = page.getByRole("navigation", { name: "Trip sections" });
   await expect(tabs.getByRole("button", { name: "Plan" })).toHaveCount(0);
   await expect(tabs.getByRole("button", { name: "Expenses" })).toHaveCount(0);
   await expect(tabs).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit stop" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Itinerary" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /i'm here|check.?in|attendance/i })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Itinerary" })).toBeVisible();
+  await expect(page.locator(".stop").getByRole("button")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /i'm here|check.?in|attendance/i }),
+  ).toHaveCount(0);
   await expect(page.getByText(/checked in|attendance/i)).toHaveCount(0);
-  expect(fixtureState.getRestRequests().some(({ method, table }) => method === "GET" && table === "check_ins")).toBe(false);
-  expect(fixtureState.getRpcCalls().some(({ fn }) => fn === "check_in")).toBe(false);
+  expect(
+    fixtureState
+      .getRestRequests()
+      .some(({ method, table }) => method === "GET" && table === "check_ins"),
+  ).toBe(false);
+  expect(fixtureState.getRpcCalls().some(({ fn }) => fn === "check_in")).toBe(
+    false,
+  );
   await page.locator(".activity").screenshot({
     path: `artifacts/${testInfo.project.name}-senior-fixture-preview.png`,
     style: "header, .activity-tabs { position: static !important; }",
@@ -1202,6 +1330,225 @@ test("Senior view persists on this device and hides editing tabs", async ({
   await expect(
     page.getByRole("button", { name: "Exit senior view" }),
   ).toBeVisible();
+});
+
+test.describe("Daily itinerary browser regressions", () => {
+  test("editing a daily hotel and editing it from Accommodation keep the same stay version", async ({
+    page,
+  }) => {
+    const fixtureState = await installFixture(page);
+    await page.goto("/");
+    await openTrip(page);
+    await page
+      .getByRole("navigation", { name: "Trip sections" })
+      .getByRole("button", { name: "Plan" })
+      .click();
+    const plan = page.getByRole("region", { name: "Trip plan" });
+    const planViews = plan.getByRole("navigation", { name: "Plan view" });
+    const secondDay = plan.locator(".plan-night").nth(1);
+    await expect(secondDay.locator(".plan-daily-stay")).toContainText(
+      "River House",
+    );
+    await secondDay
+      .locator(".plan-daily-stay")
+      .getByRole("button", { name: "Edit accommodation" })
+      .click();
+    const accommodation = plan.locator(".plan-stays");
+    const editor = accommodation.locator("form.plan-form");
+    await expect(editor.getByLabel("Name", { exact: true })).toHaveValue(
+      "River House",
+    );
+    await editor
+      .getByLabel("Name", { exact: true })
+      .fill("River House Daily Edit");
+    await editor.getByRole("button", { name: "Save accommodation" }).click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_stay")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_stay_id: "stay-1",
+        p_expected_version: 1,
+        p_name: "River House Daily Edit",
+      });
+    await expect
+      .poll(() => fixtureState.getStays().find((stay) => stay.id === "stay-1"))
+      .toMatchObject({
+        id: "stay-1",
+        name: "River House Daily Edit",
+        version: 2,
+      });
+
+    await expect(
+      plan.locator(".plan-stay").filter({ hasText: "River House Daily Edit" }),
+    ).toBeVisible();
+    await plan
+      .locator(".plan-stay")
+      .filter({ hasText: "River House Daily Edit" })
+      .getByRole("button", { name: "Edit accommodation" })
+      .click();
+    await expect(editor.getByLabel("Name", { exact: true })).toHaveValue(
+      "River House Daily Edit",
+    );
+    await editor
+      .getByLabel("Name", { exact: true })
+      .fill("River House Accommodation Edit");
+    await editor.getByRole("button", { name: "Save accommodation" }).click();
+    await expect
+      .poll(
+        () =>
+          fixtureState
+            .getRpcCalls()
+            .filter((call) => call.fn === "upsert_stay")
+            .at(-1)?.args,
+      )
+      .toMatchObject({
+        p_stay_id: "stay-1",
+        p_expected_version: 2,
+        p_name: "River House Accommodation Edit",
+      });
+    await expect
+      .poll(() => fixtureState.getStays().find((stay) => stay.id === "stay-1"))
+      .toMatchObject({
+        id: "stay-1",
+        name: "River House Accommodation Edit",
+        version: 3,
+      });
+    await planViews.getByRole("button", { name: "Daily overview" }).click();
+    await expect(
+      plan.locator(".plan-night").nth(1).locator(".plan-daily-stay"),
+    ).toContainText("River House Accommodation Edit");
+  });
+
+  test("selected day keeps destination, checkout-exclusive hotel, and activities aligned", async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date("2026-11-02T03:00:00.000Z"));
+    await installFixture(page, { daily: true });
+    await page.goto("/");
+    await openTrip(page);
+
+    const date = page.getByLabel("Itinerary date");
+    const tonight = page.getByRole("region", {
+      name: "Selected day destination and accommodation",
+    });
+    await expect(date).toHaveValue("2026-11-02");
+    await expect(tonight).toContainText("Bangkok");
+    await expect(tonight).toContainText("River House");
+    await expect(page.locator(".stop").nth(0)).toContainText("Wat Arun");
+    await expect(page.locator(".stop").nth(1)).toContainText(
+      "Chatuchak Market",
+    );
+    await expect(page.locator(".stop")).toHaveCount(2);
+
+    await page.getByRole("button", { name: "Next day" }).click();
+    await expect(date).toHaveValue("2026-11-03");
+    await expect(tonight).toContainText("Chiang Mai");
+    await expect(tonight).toContainText("Doi Hotel");
+    await expect(tonight).not.toContainText("River House");
+    await expect(page.getByText("Free day")).toBeVisible();
+    await page.getByRole("button", { name: /Next planned activity/ }).click();
+    await expect(date).toHaveValue("2026-11-04");
+    await expect(tonight).toContainText("Chiang Mai");
+    await expect(tonight).toContainText("Doi Hotel");
+    await expect(page.locator(".stop").first()).toContainText("Night Bazaar");
+    await expect(page.locator(".stop")).toHaveCount(1);
+
+    await page.getByRole("button", { name: "Previous day" }).click();
+    await expect(date).toHaveValue("2026-11-03");
+    await expect(tonight).toContainText("Doi Hotel");
+    await page.getByRole("button", { name: "Previous day" }).click();
+    await expect(date).toHaveValue("2026-11-02");
+    await expect(tonight).toContainText("River House");
+    await page.getByRole("button", { name: "Previous day" }).click();
+    await expect(date).toHaveValue("2026-11-01");
+    await expect(
+      page.getByRole("button", { name: "Previous day" }),
+    ).toBeDisabled();
+    await expect(tonight).toContainText("River House");
+    await expect(page.locator(".stop").first()).toContainText("Old Town Walk");
+  });
+
+  test("default date clamps to first and last trip day outside the trip dates", async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date("2026-10-29T03:00:00.000Z"));
+    await installFixture(page, { daily: true });
+    await page.goto("/");
+    await openTrip(page);
+    const date = page.getByLabel("Itinerary date");
+    const tonight = page.getByRole("region", {
+      name: "Selected day destination and accommodation",
+    });
+    await expect(date).toHaveValue("2026-11-01");
+    await expect(tonight).toContainText("Bangkok");
+    await expect(tonight).toContainText("River House");
+    await expect(
+      page.getByRole("button", { name: "Previous day" }),
+    ).toBeDisabled();
+  });
+
+  test("default date clamps to last trip day when today is after the trip", async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date("2026-11-06T03:00:00.000Z"));
+    await installFixture(page, { daily: true });
+    await page.goto("/");
+    await openTrip(page);
+    const date = page.getByLabel("Itinerary date");
+    const selectedDay = page.getByRole("region", {
+      name: "Selected day destination and accommodation",
+    });
+    await expect(date).toHaveValue("2026-11-04");
+    await expect(selectedDay).toContainText("Chiang Mai");
+    await expect(selectedDay).toContainText("Doi Hotel");
+    await expect(page.locator(".stop").first()).toContainText("Night Bazaar");
+    await expect(page.getByRole("button", { name: "Next day" })).toBeDisabled();
+  });
+
+  test("participant sees daily stay and activities without editing controls", async ({
+    page,
+  }) => {
+    await installFixture(page, { participant: true, daily: true });
+    await page.goto("/");
+    await openTrip(page);
+    const plan = page.getByRole("region", { name: "Trip plan" });
+    await page
+      .getByRole("navigation", { name: "Trip sections" })
+      .getByRole("button", { name: "Plan" })
+      .click();
+    await expect(
+      plan.locator(".plan-night").nth(1).locator(".plan-daily-stay"),
+    ).toContainText("River House");
+    await expect(
+      plan.getByRole("navigation", { name: "Plan view" }).getByRole("button", {
+        name: "Accommodation",
+      }),
+    ).toBeVisible();
+    await plan
+      .getByRole("navigation", { name: "Plan view" })
+      .getByRole("button", { name: "Accommodation" })
+      .click();
+    await expect(
+      plan.locator(".plan-stay").filter({ hasText: "River House" }).first(),
+    ).toBeVisible();
+    await expect(
+      plan.getByRole("button", { name: "Edit accommodation" }),
+    ).toHaveCount(0);
+    await expect(
+      plan.getByRole("button", { name: "Add accommodation" }),
+    ).toHaveCount(0);
+    await expect(
+      plan.getByRole("button", { name: "Edit this night" }),
+    ).toHaveCount(0);
+    await expect(
+      plan.locator(".plan-activity").getByRole("button"),
+    ).toHaveCount(0);
+  });
 });
 
 test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok date", async ({
@@ -1227,11 +1574,15 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
     });
   };
   await expect(
-    page.getByRole("region", { name: "Tonight destination and accommodation" }),
+    page.getByRole("region", {
+      name: "Selected day destination and accommodation",
+    }),
   ).toContainText("Bangkok");
   await expect(page.locator("header")).not.toContainText("Asia/Bangkok");
   await expect(
-    page.getByRole("region", { name: "Tonight destination and accommodation" }),
+    page.getByRole("region", {
+      name: "Selected day destination and accommodation",
+    }),
   ).not.toContainText("Asia/Bangkok");
   await screenshot("today");
   await page
@@ -1242,14 +1593,23 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
   const plan = page.getByRole("region", { name: "Trip plan" });
   const dayGroups = plan.locator(".plan-nights > .plan-night");
   await expect(dayGroups).toHaveCount(4);
-  for (const [index, date] of ["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04"].entries()) {
+  for (const [index, date] of [
+    "2026-11-01",
+    "2026-11-02",
+    "2026-11-03",
+    "2026-11-04",
+  ].entries()) {
     const group = dayGroups.nth(index);
-    await expect(group.locator(":scope > .plan-day-heading")).toContainText(`Day ${index + 1}`);
-    await expect(group.locator(":scope > .plan-day-heading time")).toHaveAttribute("datetime", date);
+    await expect(group.locator(":scope > .plan-day-heading")).toContainText(
+      `Day ${index + 1}`,
+    );
+    await expect(
+      group.locator(":scope > .plan-day-heading time"),
+    ).toHaveAttribute("datetime", date);
     await expect(group.locator(".plan-night")).toHaveCount(0);
   }
   await expect(plan).not.toContainText("Asia/Bangkok");
-  const planActions = plan.locator("button");
+  const planActions = plan.locator(".plan-nights button");
   await expect(planActions).not.toHaveCount(0);
   await expect(plan.locator(".plan-icon-button")).toHaveCount(
     await planActions.count(),
@@ -1259,6 +1619,14 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
     await expect(action.locator("svg")).toHaveCount(1);
   }
   await screenshot("plan");
+  await plan
+    .getByRole("navigation", { name: "Plan view" })
+    .getByRole("button", { name: "Accommodation" })
+    .click();
+  await expect(
+    plan.locator(".plan-stay").filter({ hasText: "River House" }).first(),
+  ).toBeVisible();
+  await screenshot("accommodation");
   await page
     .getByRole("navigation", { name: "Trip sections" })
     .getByRole("button", { name: "Expenses" })
@@ -1334,8 +1702,12 @@ test("account Appearance offers Light, Dark, and System and follows the OS", asy
 
   const appearance = page.getByRole("group", { name: "Appearance" });
   await expect(appearance).toBeVisible();
-  await expect(appearance.getByRole("radio", { name: "Light" })).not.toBeChecked();
-  await expect(appearance.getByRole("radio", { name: "Dark" })).not.toBeChecked();
+  await expect(
+    appearance.getByRole("radio", { name: "Light" }),
+  ).not.toBeChecked();
+  await expect(
+    appearance.getByRole("radio", { name: "Dark" }),
+  ).not.toBeChecked();
   await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
   await page.locator(".account-menu").screenshot({
     path: `artifacts/${testInfo.project.name}-account-appearance-fixture-preview.png`,
@@ -1352,7 +1724,9 @@ test("account Appearance offers Light, Dark, and System and follows the OS", asy
   await appearance.getByRole("radio", { name: "System" }).check();
   await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  expect(await page.evaluate(() => localStorage.getItem("paikan-theme"))).toBeNull();
+  expect(
+    await page.evaluate(() => localStorage.getItem("paikan-theme")),
+  ).toBeNull();
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.emulateMedia({ colorScheme: "light" });
@@ -1393,11 +1767,31 @@ test("captures dark trip tabs and light preview without horizontal overflow", as
       const plan = page.getByRole("region", { name: "Trip plan" });
       const dayGroups = plan.locator(".plan-nights > .plan-night");
       await expect(dayGroups).toHaveCount(4);
-      await expect(dayGroups.nth(0).locator(":scope > .plan-day-heading")).toContainText("Day 1");
-      await expect(dayGroups.nth(1).locator(":scope > .plan-day-heading")).toContainText("Day 2");
-      await expect(dayGroups.nth(0).locator(":scope > .plan-day-heading time")).toHaveAttribute("datetime", "2026-11-01");
-      await expect(dayGroups.nth(1).locator(":scope > .plan-day-heading time")).toHaveAttribute("datetime", "2026-11-02");
+      await expect(
+        dayGroups.nth(0).locator(":scope > .plan-day-heading"),
+      ).toContainText("Day 1");
+      await expect(
+        dayGroups.nth(1).locator(":scope > .plan-day-heading"),
+      ).toContainText("Day 2");
+      await expect(
+        dayGroups.nth(0).locator(":scope > .plan-day-heading time"),
+      ).toHaveAttribute("datetime", "2026-11-01");
+      await expect(
+        dayGroups.nth(1).locator(":scope > .plan-day-heading time"),
+      ).toHaveAttribute("datetime", "2026-11-02");
       await expect(plan.locator(".plan-night .plan-night")).toHaveCount(0);
+      await plan
+        .getByRole("navigation", { name: "Plan view" })
+        .getByRole("button", { name: "Accommodation" })
+        .click();
+      await expect(
+        plan.locator(".plan-stay").filter({ hasText: "River House" }).first(),
+      ).toBeVisible();
+      await capture("accommodation", "dark");
+      await plan
+        .getByRole("navigation", { name: "Plan view" })
+        .getByRole("button", { name: "Daily overview" })
+        .click();
     }
     await capture(tab.toLowerCase(), "dark");
   }

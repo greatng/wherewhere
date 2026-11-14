@@ -7,6 +7,7 @@ import { expandDateRange, formatDateLabel } from "./dates";
 import { tripWallTimeToIso } from "./timezone";
 import { revealEditor } from "../../shared/editor-navigation";
 import { ActionIcon } from "../../shared/ActionIcon";
+import { stayForDate } from "./day";
 
 export type TripLike = {
   id: string;
@@ -115,6 +116,8 @@ export function Plan({
   const [showNightEditor, setShowNightEditor] = useState(false);
   const [showStayEditor, setShowStayEditor] = useState(false);
   const [showActivityEditor, setShowActivityEditor] = useState(false);
+  const [planView, setPlanView] = useState<"daily" | "accommodation">("daily");
+  const [stayDate, setStayDate] = useState(trip.start_date);
   const [editorNavigation, setEditorNavigation] = useState(0);
   const [editorNavigationTarget, setEditorNavigationTarget] = useState<
     "night" | "stay" | "activity" | null
@@ -449,406 +452,522 @@ export function Plan({
           )}
         </p>
       )}
-      <div class="plan-nights">
-        <h3>
-          {t("Where are we staying each night?", "แต่ละคืนพักที่เมืองไหน")}
-        </h3>
-        {dates.map((date, dayIndex) => {
-          const night = rows.find((x) => x.night_date === date);
-          return (
-            <article class="plan-night" key={date} aria-labelledby={`day-${trip.id}-${date}`}>
-              <h4 class="plan-day-heading" id={`day-${trip.id}-${date}`}>
-                <span class="plan-day-number">{t("Day", "วันที่")} {dayIndex + 1}</span>
-                <time dateTime={date}>{formatDateLabel(date, locale)}</time>
-              </h4>
-              {night ? (
-                <>
-                  <p>{night.city}</p>
-                  {night.transport_mode && <p>{tLabel(night.transport_mode, thai)}</p>}
-                  {organizer && (
-                    <>
-                      <Button
-                        type="button"
-                        svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                        aria-label={t("Edit this night", "แก้ไขคืนนี้")}
-                        title={t("Edit this night", "แก้ไขคืนนี้")}
-                        onClick={() => {
-                          setNightForm(night);
-                          setReplaceRange(false);
-                          setShowNightEditor(true);
-                          requestEditorNavigation("night");
-                        }}
-                      >
-                        <ActionIcon kind="edit" />
-                      </Button>
-                      <Button
-                        type="button"
-                        svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44 danger"
-                        aria-label={t("Remove", "ลบ")}
-                        title={t("Remove", "ลบ")}
-                        onClick={() => void deleteNight(night)}
-                      >
-                        <ActionIcon kind="remove" />
-                      </Button>
-                    </>
-                  )}
-                </>
-              ) : (
-                <p>{t("Destination not set", "ยังไม่ได้กำหนดเมือง")}</p>
-              )}
-              {activitiesByDate
-                .filter(
-                  (a) =>
-                    activityDestinationDate(a, destinationTimezone) === date,
-                )
-                .map((activity) => (
-                  <div class="plan-activity" key={activity.id}>
-                    <strong>{activity.title}</strong>
-                    {activity.starts_at && (
-                      <p>
-                        {new Date(activity.starts_at).toLocaleTimeString(
-                          locale,
-                          {
-                            timeZone: destinationTimezone,
-                            timeStyle: "short",
-                          },
-                        )}
-                      </p>
+      <nav class="plan-view-toggle" aria-label={t("Plan view", "มุมมองแผน")}>
+        <Button
+          type="button"
+          aria-pressed={planView === "daily"}
+          appearance={planView === "daily" ? "primary" : "tertiary"}
+          onClick={() => setPlanView("daily")}
+        >
+          {t("Daily overview", "ภาพรวมรายวัน")}
+        </Button>
+        <Button
+          type="button"
+          aria-pressed={planView === "accommodation"}
+          appearance={planView === "accommodation" ? "primary" : "tertiary"}
+          onClick={() => setPlanView("accommodation")}
+        >
+          {t("Accommodation", "ที่พัก")}
+        </Button>
+      </nav>
+      {planView === "daily" && (
+        <div class="plan-nights">
+          <h3>
+            {t("Where are we staying each night?", "แต่ละคืนพักที่เมืองไหน")}
+          </h3>
+          {dates.map((date, dayIndex) => {
+            const night = rows.find((x) => x.night_date === date);
+            return (
+              <article
+                class="plan-night"
+                key={date}
+                aria-labelledby={`day-${trip.id}-${date}`}
+              >
+                <h4 class="plan-day-heading" id={`day-${trip.id}-${date}`}>
+                  <span class="plan-day-number">
+                    {t("Day", "วันที่")} {dayIndex + 1}
+                  </span>
+                  <time dateTime={date}>{formatDateLabel(date, locale)}</time>
+                </h4>
+                {night ? (
+                  <>
+                    <p>{night.city}</p>
+                    {night.transport_mode && (
+                      <p>{tLabel(night.transport_mode, thai)}</p>
                     )}
-                    {activity.address && <p>{activity.address}</p>}
-                    {activity.notes && <p>{activity.notes}</p>}
-                    {activity.transport_mode && <p>{tLabel(activity.transport_mode, thai)}</p>}
                     {organizer && (
                       <>
                         <Button
                           type="button"
-                          svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                          aria-label={t("Edit activity", "แก้ไขกิจกรรม")}
-                          title={t("Edit activity", "แก้ไขกิจกรรม")}
+                          svgOnly
+                          appearance="tertiary"
+                          class="plan-icon-button icon44"
+                          aria-label={t("Edit this night", "แก้ไขคืนนี้")}
+                          title={t("Edit this night", "แก้ไขคืนนี้")}
                           onClick={() => {
-                            setActivityForm(activity);
-                            setActivityDate(
-                              activityDestinationDate(
-                                activity,
-                                destinationTimezone,
-                              ) ?? date,
-                            );
-                            setShowActivityEditor(true);
-                            requestEditorNavigation("activity");
+                            setNightForm(night);
+                            setReplaceRange(false);
+                            setShowNightEditor(true);
+                            requestEditorNavigation("night");
                           }}
                         >
                           <ActionIcon kind="edit" />
                         </Button>
                         <Button
                           type="button"
-                          svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44 danger"
+                          svgOnly
+                          appearance="tertiary"
+                          class="plan-icon-button icon44 danger"
                           aria-label={t("Remove", "ลบ")}
                           title={t("Remove", "ลบ")}
-                          onClick={() => void deleteActivity(activity)}
+                          onClick={() => void deleteNight(night)}
                         >
                           <ActionIcon kind="remove" />
                         </Button>
                       </>
                     )}
-                  </div>
-                ))}
-              {organizer && (
-                <Button
-                  type="button"
-                  svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                  aria-label={t("Add activity", "เพิ่มกิจกรรม")}
-                  title={t("Add activity", "เพิ่มกิจกรรม")}
-                  onClick={() => {
-                    setActivityForm(null);
-                    setActivityDate(date);
-                    setShowActivityEditor(true);
-                    requestEditorNavigation("activity");
-                  }}
+                  </>
+                ) : (
+                  <p>{t("Destination not set", "ยังไม่ได้กำหนดเมือง")}</p>
+                )}
+                {(() => {
+                  const stay = stayForDate(stays.data ?? [], date);
+                  return stay ? (
+                    <div class="plan-daily-stay">
+                      <strong>{stay.name}</strong>
+                      {stay.address && <p>{stay.address}</p>}
+                      {organizer && (
+                        <Button
+                          type="button"
+                          svgOnly
+                          appearance="tertiary"
+                          class="plan-icon-button icon44"
+                          aria-label={t("Edit accommodation", "แก้ไขที่พัก")}
+                          title={t("Edit accommodation", "แก้ไขที่พัก")}
+                          onClick={() => {
+                            setPlanView("accommodation");
+                            setStayForm(stay);
+                            setStayDate(date);
+                            setShowStayEditor(true);
+                            requestEditorNavigation("stay");
+                          }}
+                        >
+                          <ActionIcon kind="edit" />
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div class="plan-daily-stay">
+                      <p>
+                        {t("Accommodation not set", "ยังไม่ได้กำหนดที่พัก")}
+                      </p>
+                      {organizer && (
+                        <Button
+                          type="button"
+                          svgOnly
+                          appearance="tertiary"
+                          class="plan-icon-button icon44"
+                          aria-label={t(
+                            `Add accommodation for ${date}`,
+                            `เพิ่มที่พักสำหรับ ${date}`,
+                          )}
+                          title={t("Add accommodation", "เพิ่มที่พัก")}
+                          onClick={() => {
+                            setPlanView("accommodation");
+                            setStayForm(null);
+                            setStayDate(date);
+                            setShowStayEditor(true);
+                            requestEditorNavigation("stay");
+                          }}
+                        >
+                          <ActionIcon kind="add" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })()}
+                {!activitiesByDate.some(
+                  (activity) =>
+                    activityDestinationDate(activity, destinationTimezone) ===
+                    date,
+                ) && <p>{t("Free day", "วันว่าง")}</p>}
+                {activitiesByDate
+                  .filter(
+                    (a) =>
+                      activityDestinationDate(a, destinationTimezone) === date,
+                  )
+                  .map((activity) => (
+                    <div class="plan-activity" key={activity.id}>
+                      <strong>{activity.title}</strong>
+                      {activity.starts_at && (
+                        <p>
+                          {new Date(activity.starts_at).toLocaleTimeString(
+                            locale,
+                            {
+                              timeZone: destinationTimezone,
+                              timeStyle: "short",
+                            },
+                          )}
+                        </p>
+                      )}
+                      {activity.address && <p>{activity.address}</p>}
+                      {activity.notes && <p>{activity.notes}</p>}
+                      {activity.transport_mode && (
+                        <p>{tLabel(activity.transport_mode, thai)}</p>
+                      )}
+                      {organizer && (
+                        <>
+                          <Button
+                            type="button"
+                            svgOnly
+                            appearance="tertiary"
+                            class="plan-icon-button icon44"
+                            aria-label={t("Edit activity", "แก้ไขกิจกรรม")}
+                            title={t("Edit activity", "แก้ไขกิจกรรม")}
+                            onClick={() => {
+                              setActivityForm(activity);
+                              setActivityDate(
+                                activityDestinationDate(
+                                  activity,
+                                  destinationTimezone,
+                                ) ?? date,
+                              );
+                              setShowActivityEditor(true);
+                              requestEditorNavigation("activity");
+                            }}
+                          >
+                            <ActionIcon kind="edit" />
+                          </Button>
+                          <Button
+                            type="button"
+                            svgOnly
+                            appearance="tertiary"
+                            class="plan-icon-button icon44 danger"
+                            aria-label={t("Remove", "ลบ")}
+                            title={t("Remove", "ลบ")}
+                            onClick={() => void deleteActivity(activity)}
+                          >
+                            <ActionIcon kind="remove" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                {organizer && (
+                  <Button
+                    type="button"
+                    svgOnly
+                    appearance="tertiary"
+                    class="plan-icon-button icon44"
+                    aria-label={t("Add activity", "เพิ่มกิจกรรม")}
+                    title={t("Add activity", "เพิ่มกิจกรรม")}
+                    onClick={() => {
+                      setActivityForm(null);
+                      setActivityDate(date);
+                      setShowActivityEditor(true);
+                      requestEditorNavigation("activity");
+                    }}
+                  >
+                    <ActionIcon kind="add" />
+                  </Button>
+                )}
+              </article>
+            );
+          })}
+          {organizer && (
+            <>
+              <Button
+                type="button"
+                svgOnly
+                appearance="tertiary"
+                class="plan-icon-button icon44"
+                aria-label={t(
+                  "Add city for a night or range",
+                  "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
+                )}
+                title={t(
+                  "Add city for a night or range",
+                  "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
+                )}
+                aria-expanded={showNightEditor}
+                onClick={() => {
+                  setNightForm(null);
+                  setShowNightEditor(true);
+                  requestEditorNavigation("night");
+                }}
+              >
+                <ActionIcon kind="add" />
+              </Button>
+              {showNightEditor && (
+                <form
+                  class="plan-form editor-panel"
+                  ref={nightEditorRef}
+                  key={nightForm?.night_date ?? "night-new"}
+                  onSubmit={saveNights}
                 >
-                  <ActionIcon kind="add" />
-                </Button>
+                  <h4>
+                    {nightForm
+                      ? t("Edit destination night", "แก้ไขเมืองคืนนี้")
+                      : t(
+                          "Add destination for a night or range",
+                          "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
+                        )}
+                  </h4>
+                  <label>
+                    {t("From (night of)", "เริ่มคืนวันที่")}
+                    <input
+                      name="from"
+                      type="date"
+                      min={trip.start_date}
+                      max={trip.end_date}
+                      required
+                      defaultValue={nightForm?.night_date ?? trip.start_date}
+                    />
+                  </label>
+                  <label>
+                    {t("Through (inclusive)", "ถึงวันที่ (รวมคืนนี้)")}
+                    <input
+                      name="to"
+                      type="date"
+                      min={trip.start_date}
+                      max={trip.end_date}
+                      required
+                      defaultValue={nightForm?.night_date ?? trip.start_date}
+                    />
+                  </label>
+                  <label>
+                    {t("City", "เมือง")}
+                    <input
+                      name="city"
+                      required
+                      maxLength={160}
+                      defaultValue={nightForm?.city ?? ""}
+                    />
+                  </label>
+                  <label>
+                    {t("Travel mode into this city", "การเดินทางเข้าเมืองนี้")}
+                    <ModeSelect
+                      name="transport"
+                      value={nightForm?.transport_mode ?? ""}
+                      thai={thai}
+                      t={t}
+                    />
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={replaceRange}
+                      onChange={(e) => setReplaceRange(e.currentTarget.checked)}
+                    />
+                    {t(
+                      "I understand this will overwrite the selected nights",
+                      "ฉันเข้าใจว่าการดำเนินการนี้จะเขียนทับเมืองในคืนที่เลือก",
+                    )}
+                  </label>
+                  <Button
+                    type="submit"
+                    svgOnly
+                    appearance="tertiary"
+                    class="plan-icon-button icon44"
+                    aria-label={
+                      nightForm
+                        ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
+                        : t("Save destination", "บันทึกเมือง")
+                    }
+                    title={
+                      nightForm
+                        ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
+                        : t("Save destination", "บันทึกเมือง")
+                    }
+                  >
+                    <ActionIcon kind="save" />
+                  </Button>
+                  <Button
+                    type="button"
+                    svgOnly
+                    appearance="tertiary"
+                    class="plan-icon-button icon44"
+                    aria-label={t("Cancel", "ยกเลิก")}
+                    title={t("Cancel", "ยกเลิก")}
+                    onClick={() => {
+                      setNightForm(null);
+                      setShowNightEditor(false);
+                    }}
+                  >
+                    <ActionIcon kind="cancel" />
+                  </Button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      {planView === "accommodation" && (
+        <div class="plan-stays">
+          <h3>{t("Accommodation", "ที่พัก")}</h3>
+          {(stays.data ?? []).map((stay) => (
+            <article class="plan-stay" key={stay.id}>
+              <strong>{stay.name}</strong>
+              <p>
+                {stay.check_in_date} — {stay.check_out_date} ·{" "}
+                {t("check-out", "วันออก")}
+              </p>
+              {stay.address && <p>{stay.address}</p>}
+              {stay.phone && <p>{stay.phone}</p>}
+              {organizer && (
+                <>
+                  <Button
+                    type="button"
+                    svgOnly
+                    appearance="tertiary"
+                    class="plan-icon-button icon44"
+                    aria-label={t("Edit accommodation", "แก้ไขที่พัก")}
+                    title={t("Edit accommodation", "แก้ไขที่พัก")}
+                    onClick={() => {
+                      setStayForm(stay);
+                      setStayDate(stay.check_in_date);
+                      setShowStayEditor(true);
+                      requestEditorNavigation("stay");
+                    }}
+                  >
+                    <ActionIcon kind="edit" />
+                  </Button>
+                  <Button
+                    type="button"
+                    svgOnly
+                    appearance="tertiary"
+                    class="plan-icon-button icon44 danger"
+                    aria-label={t("Remove", "ลบ")}
+                    title={t("Remove", "ลบ")}
+                    onClick={() => void deleteStay(stay)}
+                  >
+                    <ActionIcon kind="remove" />
+                  </Button>
+                </>
               )}
             </article>
-          );
-        })}
-        {organizer && (
-          <>
-            <Button
-              type="button"
-              svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-              aria-label={t(
-                "Add city for a night or range",
-                "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
-              )}
-              title={t(
-                "Add city for a night or range",
-                "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
-              )}
-              aria-expanded={showNightEditor}
-              onClick={() => {
-                setNightForm(null);
-                setShowNightEditor(true);
-                requestEditorNavigation("night");
-              }}
-            >
-              <ActionIcon kind="add" />
-            </Button>
-            {showNightEditor && (
-              <form
-                class="plan-form editor-panel"
-                ref={nightEditorRef}
-                key={nightForm?.night_date ?? "night-new"}
-                onSubmit={saveNights}
+          ))}
+          {organizer && (
+            <>
+              <Button
+                type="button"
+                svgOnly
+                appearance="tertiary"
+                class="plan-icon-button icon44"
+                aria-label={t("Add accommodation", "เพิ่มที่พัก")}
+                title={t("Add accommodation", "เพิ่มที่พัก")}
+                aria-expanded={showStayEditor}
+                onClick={() => {
+                  setStayForm(null);
+                  setStayDate(trip.start_date);
+                  setShowStayEditor(true);
+                  requestEditorNavigation("stay");
+                }}
               >
-                <h4>
-                  {nightForm
-                    ? t("Edit destination night", "แก้ไขเมืองคืนนี้")
-                    : t(
-                        "Add destination for a night or range",
-                        "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
+                <ActionIcon kind="add" />
+              </Button>
+              {showStayEditor && (
+                <form
+                  class="plan-form editor-panel"
+                  ref={stayEditorRef}
+                  key={stayForm?.id ?? "stay-new"}
+                  onSubmit={saveStay}
+                >
+                  <h4>
+                    {stayForm
+                      ? t("Edit accommodation", "แก้ไขที่พัก")
+                      : t("Add accommodation", "เพิ่มที่พัก")}
+                  </h4>
+                  {stayForm && (
+                    <p>
+                      {t(
+                        "Changes apply to this stay's entire check-in/check-out range.",
+                        "การแก้ไขมีผลกับที่พักนี้ตลอดช่วงวันเข้าและวันออกที่ระบุ",
                       )}
-                </h4>
-                <label>
-                  {t("From (night of)", "เริ่มคืนวันที่")}
-                  <input
-                    name="from"
-                    type="date"
-                    min={trip.start_date}
-                    max={trip.end_date}
-                    required
-                    defaultValue={nightForm?.night_date ?? trip.start_date}
-                  />
-                </label>
-                <label>
-                  {t("Through (inclusive)", "ถึงวันที่ (รวมคืนนี้)")}
-                  <input
-                    name="to"
-                    type="date"
-                    min={trip.start_date}
-                    max={trip.end_date}
-                    required
-                    defaultValue={nightForm?.night_date ?? trip.start_date}
-                  />
-                </label>
-                <label>
-                  {t("City", "เมือง")}
-                  <input
-                    name="city"
-                    required
-                    maxLength={160}
-                    defaultValue={nightForm?.city ?? ""}
-                  />
-                </label>
-                <label>
-                  {t("Travel mode into this city", "การเดินทางเข้าเมืองนี้")}
-                  <ModeSelect
-                    name="transport"
-                    value={nightForm?.transport_mode ?? ""}
-                    thai={thai}
-                    t={t}
-                  />
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={replaceRange}
-                    onChange={(e) => setReplaceRange(e.currentTarget.checked)}
-                  />
-                  {t(
-                    "I understand this will overwrite the selected nights",
-                    "ฉันเข้าใจว่าการดำเนินการนี้จะเขียนทับเมืองในคืนที่เลือก",
+                    </p>
                   )}
-                </label>
-                <Button
-                  type="submit"
-                  svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                  aria-label={
-                    nightForm
-                      ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
-                      : t("Save destination", "บันทึกเมือง")
-                  }
-                  title={
-                    nightForm
-                      ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
-                      : t("Save destination", "บันทึกเมือง")
-                  }
-                >
-                  <ActionIcon kind="save" />
-                </Button>
-                <Button
-                  type="button"
-                  svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                  aria-label={t("Cancel", "ยกเลิก")}
-                  title={t("Cancel", "ยกเลิก")}
-                  onClick={() => {
-                    setNightForm(null);
-                    setShowNightEditor(false);
-                  }}
-                >
-                  <ActionIcon kind="cancel" />
-                </Button>
-              </form>
-            )}
-          </>
-        )}
-      </div>
-      <div class="plan-stays">
-        <h3>{t("Accommodation", "ที่พัก")}</h3>
-        {(stays.data ?? []).map((stay) => (
-          <article class="plan-stay" key={stay.id}>
-            <strong>{stay.name}</strong>
-            <p>
-              {stay.check_in_date} — {stay.check_out_date} ·{" "}
-              {t("check-out", "วันออก")}
-            </p>
-            {stay.address && <p>{stay.address}</p>}
-            {stay.phone && <p>{stay.phone}</p>}
-            {organizer && (
-              <>
-                <Button
-                  type="button"
-                  svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                  aria-label={t("Edit", "แก้ไข")}
-                  title={t("Edit", "แก้ไข")}
-                  onClick={() => {
-                    setStayForm(stay);
-                    setShowStayEditor(true);
-                    requestEditorNavigation("stay");
-                  }}
-                >
-                  <ActionIcon kind="edit" />
-                </Button>
-                <Button
-                  type="button"
-                  svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44 danger"
-                  aria-label={t("Remove", "ลบ")}
-                  title={t("Remove", "ลบ")}
-                  onClick={() => void deleteStay(stay)}
-                >
-                  <ActionIcon kind="remove" />
-                </Button>
-              </>
-            )}
-          </article>
-        ))}
-        {organizer && (
-          <>
-            <Button
-              type="button"
-              svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-              aria-label={t("Add accommodation", "เพิ่มที่พัก")}
-              title={t("Add accommodation", "เพิ่มที่พัก")}
-              aria-expanded={showStayEditor}
-              onClick={() => {
-                setStayForm(null);
-                setShowStayEditor(true);
-                requestEditorNavigation("stay");
-              }}
-            >
-              <ActionIcon kind="add" />
-            </Button>
-            {showStayEditor && (
-              <form
-                class="plan-form editor-panel"
-                ref={stayEditorRef}
-                key={stayForm?.id ?? "stay-new"}
-                onSubmit={saveStay}
-              >
-                <h4>
-                  {stayForm
-                    ? t("Edit accommodation", "แก้ไขที่พัก")
-                    : t("Add accommodation", "เพิ่มที่พัก")}
-                </h4>
-                <label>
-                  {t("Name", "ชื่อที่พัก")}
-                  <input
-                    name="name"
-                    required
-                    maxLength={160}
-                    defaultValue={stayForm?.name ?? ""}
-                  />
-                </label>
-                <label>
-                  {t("Check-in", "วันเข้าพัก")}
-                  <input
-                    name="from"
-                    type="date"
-                    min={trip.start_date}
-                    max={trip.end_date}
-                    required
-                    defaultValue={stayForm?.check_in_date ?? trip.start_date}
-                  />
-                </label>
-                <label>
-                  {t(
-                    "Check-out (exclusive)",
-                    "วันออกจากที่พัก (ไม่รวมคืนนั้น)",
-                  )}
-                  <input
-                    name="to"
-                    type="date"
-                    min={trip.start_date}
-                    max={addDate(trip.end_date, 1)}
-                    required
-                    defaultValue={
-                      stayForm?.check_out_date ?? addDate(trip.start_date, 1)
-                    }
-                  />
-                </label>
-                <label>
-                  {t("Address", "ที่อยู่")}
-                  <input
-                    name="address"
-                    maxLength={500}
-                    defaultValue={stayForm?.address ?? ""}
-                  />
-                </label>
-                <label>
-                  {t("Phone", "เบอร์โทรศัพท์")}
-                  <input
-                    name="phone"
-                    maxLength={40}
-                    defaultValue={stayForm?.phone ?? ""}
-                  />
-                </label>
-                <Button
-                  type="submit"
-                  svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                  aria-label={t("Save accommodation", "บันทึกที่พัก")}
-                  title={t("Save accommodation", "บันทึกที่พัก")}
-                >
-                  <ActionIcon kind="save" />
-                </Button>
-                <Button
-                  type="button"
-                  svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
-                  aria-label={t("Cancel", "ยกเลิก")}
-                  title={t("Cancel", "ยกเลิก")}
-                  onClick={() => {
-                    setStayForm(null);
-                    setShowStayEditor(false);
-                  }}
-                >
-                  <ActionIcon kind="cancel" />
-                </Button>
-              </form>
-            )}
-          </>
-        )}
-      </div>
+                  <label>
+                    {t("Name", "ชื่อที่พัก")}
+                    <input
+                      name="name"
+                      required
+                      maxLength={160}
+                      defaultValue={stayForm?.name ?? ""}
+                    />
+                  </label>
+                  <label>
+                    {t("Check-in", "วันเข้าพัก")}
+                    <input
+                      name="from"
+                      type="date"
+                      min={trip.start_date}
+                      max={trip.end_date}
+                      required
+                      defaultValue={stayForm?.check_in_date ?? stayDate}
+                    />
+                  </label>
+                  <label>
+                    {t(
+                      "Check-out (exclusive)",
+                      "วันออกจากที่พัก (ไม่รวมคืนนั้น)",
+                    )}
+                    <input
+                      name="to"
+                      type="date"
+                      min={trip.start_date}
+                      max={addDate(trip.end_date, 1)}
+                      required
+                      defaultValue={
+                        stayForm?.check_out_date ?? addDate(stayDate, 1)
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("Address", "ที่อยู่")}
+                    <input
+                      name="address"
+                      maxLength={500}
+                      defaultValue={stayForm?.address ?? ""}
+                    />
+                  </label>
+                  <label>
+                    {t("Phone", "เบอร์โทรศัพท์")}
+                    <input
+                      name="phone"
+                      maxLength={40}
+                      defaultValue={stayForm?.phone ?? ""}
+                    />
+                  </label>
+                  <Button
+                    type="submit"
+                    svgOnly
+                    appearance="tertiary"
+                    class="plan-icon-button icon44"
+                    aria-label={t("Save accommodation", "บันทึกที่พัก")}
+                    title={t("Save accommodation", "บันทึกที่พัก")}
+                  >
+                    <ActionIcon kind="save" />
+                  </Button>
+                  <Button
+                    type="button"
+                    svgOnly
+                    appearance="tertiary"
+                    class="plan-icon-button icon44"
+                    aria-label={t("Cancel", "ยกเลิก")}
+                    title={t("Cancel", "ยกเลิก")}
+                    onClick={() => {
+                      setStayForm(null);
+                      setShowStayEditor(false);
+                    }}
+                  >
+                    <ActionIcon kind="cancel" />
+                  </Button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+      )}
       {organizer && showActivityEditor && (
         <section class="plan-activity-editor">
           <h3>
@@ -932,8 +1051,9 @@ export function Plan({
             </label>
             <Button
               type="submit"
-              svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
+              svgOnly
+              appearance="tertiary"
+              class="plan-icon-button icon44"
               aria-label={t("Save activity", "บันทึกกิจกรรม")}
               title={t("Save activity", "บันทึกกิจกรรม")}
             >
@@ -941,8 +1061,9 @@ export function Plan({
             </Button>
             <Button
               type="button"
-              svgOnly appearance="tertiary"
-                        class="plan-icon-button icon44"
+              svgOnly
+              appearance="tertiary"
+              class="plan-icon-button icon44"
               aria-label={t("Cancel", "ยกเลิก")}
               title={t("Cancel", "ยกเลิก")}
               onClick={() => {

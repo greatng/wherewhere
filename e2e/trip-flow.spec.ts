@@ -1227,6 +1227,14 @@ test("captures Today, Plan, Expenses, and Trip previews with a fixed Bangkok dat
     .click();
   await expect(page.locator(".plan-night").first()).toContainText("Bangkok");
   const plan = page.getByRole("region", { name: "Trip plan" });
+  const dayGroups = plan.locator(".plan-nights > .plan-night");
+  await expect(dayGroups).toHaveCount(4);
+  for (const [index, date] of ["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04"].entries()) {
+    const group = dayGroups.nth(index);
+    await expect(group.locator(":scope > .plan-day-heading")).toContainText(`Day ${index + 1}`);
+    await expect(group.locator(":scope > .plan-day-heading time")).toHaveAttribute("datetime", date);
+    await expect(group.locator(".plan-night")).toHaveCount(0);
+  }
   await expect(plan).not.toContainText("Asia/Bangkok");
   const planActions = plan.locator("button");
   await expect(planActions).not.toHaveCount(0);
@@ -1368,6 +1376,16 @@ test("captures dark trip tabs and light preview without horizontal overflow", as
       .getByRole("navigation", { name: "Trip sections" })
       .getByRole("button", { name: tab, exact: true })
       .click();
+    if (tab === "Plan") {
+      const plan = page.getByRole("region", { name: "Trip plan" });
+      const dayGroups = plan.locator(".plan-nights > .plan-night");
+      await expect(dayGroups).toHaveCount(4);
+      await expect(dayGroups.nth(0).locator(":scope > .plan-day-heading")).toContainText("Day 1");
+      await expect(dayGroups.nth(1).locator(":scope > .plan-day-heading")).toContainText("Day 2");
+      await expect(dayGroups.nth(0).locator(":scope > .plan-day-heading time")).toHaveAttribute("datetime", "2026-11-01");
+      await expect(dayGroups.nth(1).locator(":scope > .plan-day-heading time")).toHaveAttribute("datetime", "2026-11-02");
+      await expect(plan.locator(".plan-night .plan-night")).toHaveCount(0);
+    }
     await capture(tab.toLowerCase(), "dark");
   }
   await page.getByRole("button", { name: "Switch to light mode" }).click();

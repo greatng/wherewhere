@@ -146,3 +146,10 @@ Retrieve real catalog source and integrate it into the running Preact app. Share
 GitHub issue: https://github.com/greatng/wherewhere/issues/19
 
 Rename public branding, install metadata, icons and email copy to Roam. Preserve legacy `paikan-*` and `travelmate*` storage keys so existing sessions and preferences survive. Backend identifiers and migration history are unchanged.
+
+
+## US20 — clear daily boundaries
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/20
+
+Separate daily Plan groups with generous vertical gaps and a destination-date header band. A numbered Day marker and stronger top rule distinguish each new day while activity rows remain flat and full width. Use matching light/dark colors and semantic date headings; no new nested cards.

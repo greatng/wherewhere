@@ -453,11 +453,14 @@ export function Plan({
         <h3>
           {t("Where are we staying each night?", "แต่ละคืนพักที่เมืองไหน")}
         </h3>
-        {dates.map((date) => {
+        {dates.map((date, dayIndex) => {
           const night = rows.find((x) => x.night_date === date);
           return (
-            <article class="plan-night" key={date}>
-              <h4>{formatDateLabel(date, locale)}</h4>
+            <article class="plan-night" key={date} aria-labelledby={`day-${trip.id}-${date}`}>
+              <h4 class="plan-day-heading" id={`day-${trip.id}-${date}`}>
+                <span class="plan-day-number">{t("Day", "วันที่")} {dayIndex + 1}</span>
+                <time dateTime={date}>{formatDateLabel(date, locale)}</time>
+              </h4>
               {night ? (
                 <>
                   <p>{night.city}</p>

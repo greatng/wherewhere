@@ -992,3 +992,46 @@ button.theme-toggle {
 .app-button--unstyled { padding: 0; }
 /* Icon actions retain their touch targets and the existing senior-mode overrides. */
 .app-button.plan-icon-button { min-height: 44px; width: 44px; min-width: 44px; padding: 0; }
+
+/* Each day has one clear boundary; its activities remain unboxed. */
+.plan-night {
+  border-top: 0;
+  padding-top: 0;
+}
+.plan-night + .plan-night { margin-top: 1.7rem; }
+.plan-night .plan-day-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 0.7rem;
+  padding: 0.7rem 0.75rem;
+  border-top: 3px solid var(--moss);
+  border-bottom: 1px solid var(--line);
+  background: #e9eddf;
+  color: var(--moss-dark);
+  font-size: 1rem;
+  font-weight: 650;
+}
+.plan-day-number {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 5px;
+  background: var(--moss-dark);
+  color: #fffdf8;
+  font-size: 0.8rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+:root[data-theme="dark"] .plan-night .plan-day-heading {
+  background: #303a2d;
+  color: #d5e2c8;
+}
+:root[data-theme="dark"] .plan-day-number {
+  background: #a5b994;
+  color: #1d2819;
+}
+@media (max-width: 560px) {
+  .plan-night + .plan-night { margin-top: 1.35rem; }
+  .plan-night .plan-day-heading { padding: 0.6rem; gap: 0.45rem; }
+}

@@ -1,3 +1,5 @@
+import { Button } from "../../shared/ui/Button";
+import { ThemeChoice } from "../../shared/ui/ThemeChoice";
 import { revealEditor } from "../../shared/editor-navigation";
 import { GuestRecovery } from "./GuestRecovery";
 import { actionError } from "./errors";
@@ -218,7 +220,7 @@ export function App() {
         <a href="#/trips" onClick={() => selectTrip(null)}>
           PaiKan
         </a>
-        <button
+        <Button
           type="button"
           onClick={() => {
             thai.value = !thai.value;
@@ -226,13 +228,13 @@ export function App() {
           }}
         >
           ไทย / English
-        </button>
+        </Button>
         <ThemeToggle thai={thai.value} />
       </header>
       <main>
         {uid && (
           <section class="account-menu" aria-label={t("Account", "บัญชี")}>
-            <button
+            <Button
               type="button"
               aria-expanded={accountOpen}
               onClick={() => setAccountOpen(!accountOpen)}
@@ -240,9 +242,10 @@ export function App() {
               {user?.is_anonymous
                 ? t("Guest account", "บัญชีผู้เยี่ยมชม")
                 : (user?.email ?? t("Account", "บัญชี"))}
-            </button>
+            </Button>
             {accountOpen && (
               <div>
+                <ThemeChoice thai={thai.value} />
                 <p>
                   {user?.is_anonymous
                     ? t(
@@ -252,7 +255,7 @@ export function App() {
                     : user?.email}
                 </p>
                 {user?.is_anonymous && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => {
                       selectTrip(null);
@@ -263,11 +266,11 @@ export function App() {
                       "Create my own trips / Verify email",
                       "สร้างทริปของฉัน / ยืนยันอีเมล",
                     )}
-                  </button>
+                  </Button>
                 )}
-                <button type="button" onClick={() => void prepareSignOut()}>
+                <Button type="button" onClick={() => void prepareSignOut()}>
                   {t("Sign out of this device", "ออกจากระบบในอุปกรณ์นี้")}
-                </button>
+                </Button>
               </div>
             )}
             {signOutWarning && (
@@ -294,12 +297,12 @@ export function App() {
                     )}
                   </p>
                 )}
-                <button disabled={busy} onClick={() => void signOut()}>
+                <Button disabled={busy} onClick={() => void signOut()}>
                   {t("Confirm sign out", "ยืนยันออกจากระบบ")}
-                </button>
-                <button onClick={() => setSignOutWarning(false)}>
+                </Button>
+                <Button onClick={() => setSignOutWarning(false)}>
                   {t("Keep signed in", "อยู่ในระบบต่อ")}
-                </button>
+                </Button>
               </section>
             )}
           </section>
@@ -358,9 +361,9 @@ export function App() {
                     "ฉันกำลังใช้แอปหรือเบราว์เซอร์ที่จะใช้ต่อไป",
                   )}
                 </label>
-                <button disabled={busy}>
+                <Button disabled={busy}>
                   {t("Request to join", "ขอเข้าร่วม")}
-                </button>
+                </Button>
               </form>
             </details>
           </section>
@@ -474,14 +477,14 @@ export function App() {
                   />
                 </label>
               ))}
-              <button disabled={busy}>{t("Create trip", "สร้างทริป")}</button>
+              <Button disabled={busy}>{t("Create trip", "สร้างทริป")}</Button>
             </form>
           </details>
         )}
         {uid && (
-          <button onClick={() => void qc.invalidateQueries()}>
+          <Button onClick={() => void qc.invalidateQueries()}>
             {t("Refresh status", "รีเฟรชสถานะ")}
-          </button>
+          </Button>
         )}
         {requests.data
           ?.filter((r) => r.auth_user_id === uid)
@@ -514,7 +517,7 @@ export function App() {
             )}
             <div class="trip-cards">
               {trips.data.map((trip) => (
-                <button
+                <Button
                   type="button"
                   key={trip.id}
                   aria-pressed={selectedId === trip.id}
@@ -529,7 +532,7 @@ export function App() {
                       ? t("Archived", "เก็บถาวร")
                       : t("Active", "ใช้งาน")}
                   </small>
-                </button>
+                </Button>
               ))}
             </div>
           </section>
@@ -570,7 +573,7 @@ export function App() {
                             <p key={m.id}>
                               {m.display_name}
                               {org && m.role !== "organizer" && (
-                                <button
+                                <Button
                                   disabled={busy}
                                   onClick={() =>
                                     void run(async () => {
@@ -581,7 +584,7 @@ export function App() {
                                   }
                                 >
                                   {t("Remove", "นำออก")}
-                                </button>
+                                </Button>
                               )}
                             </p>
                           ))}
@@ -626,13 +629,13 @@ export function App() {
                                     placeholder="Asia/Tokyo"
                                   />
                                 </label>
-                                <button
+                                <Button
                                   disabled={busy || trip.status !== "active"}
                                 >
                                   {t("Save timezone", "บันทึกเขตเวลา")}
-                                </button>
+                                </Button>
                               </form>
-                              <button
+                              <Button
                                 disabled={busy || trip.status !== "active"}
                                 onClick={() =>
                                   void run(async () => {
@@ -654,7 +657,7 @@ export function App() {
                                   "Create invitation QR (24 hours, 8 uses)",
                                   "สร้าง QR คำเชิญ (24 ชั่วโมง 8 คน)",
                                 )}
-                              </button>
+                              </Button>
                               <form
                                 onSubmit={(e) => {
                                   e.preventDefault();
@@ -676,16 +679,16 @@ export function App() {
                                   )}
                                   <input name="name" required maxLength={80} />
                                 </label>
-                                <button disabled={busy}>
+                                <Button disabled={busy}>
                                   {t("Add traveler", "เพิ่มผู้เดินทาง")}
-                                </button>
+                                </Button>
                               </form>
                               {uid && (
-                                <button
+                                <Button
                                   onClick={() => void qc.invalidateQueries()}
                                 >
                                   {t("Refresh status", "รีเฟรชสถานะ")}
-                                </button>
+                                </Button>
                               )}
                               {requests.data
                                 ?.filter(
@@ -697,7 +700,7 @@ export function App() {
                                   <div key={r.id}>
                                     <p>{r.requested_display_name}</p>
                                     {[true, false].map((approve) => (
-                                      <button
+                                      <Button
                                         disabled={busy}
                                         onClick={() =>
                                           void run(async () => {
@@ -711,7 +714,7 @@ export function App() {
                                         {approve
                                           ? t("Approve", "อนุมัติ")
                                           : t("Decline", "ปฏิเสธ")}
-                                      </button>
+                                      </Button>
                                     ))}
                                   </div>
                                 ))}
@@ -720,7 +723,7 @@ export function App() {
                                 .map((i) => (
                                   <p key={i.id}>
                                     {i.uses_count}/{i.max_uses} · {i.expires_at}
-                                    <button
+                                    <Button
                                       disabled={busy || !!i.revoked_at}
                                       onClick={() =>
                                         void run(async () => {
@@ -732,10 +735,10 @@ export function App() {
                                       }
                                     >
                                       {t("Revoke", "ยกเลิก")}
-                                    </button>
+                                    </Button>
                                   </p>
                                 ))}
-                              <button
+                              <Button
                                 disabled={busy || trip.status === "archived"}
                                 onClick={() =>
                                   void run(async () => {
@@ -747,9 +750,9 @@ export function App() {
                                 }
                               >
                                 {t("Archive trip", "เก็บทริป")}
-                              </button>
+                              </Button>
                               {trip.status === "archived" && (
-                                <button
+                                <Button
                                   disabled={busy}
                                   onClick={() =>
                                     void run(async () => {
@@ -760,7 +763,7 @@ export function App() {
                                   }
                                 >
                                   {t("Restore trip", "กู้คืนทริป")}
-                                </button>
+                                </Button>
                               )}
                             </details>
                             <GuestRecovery
@@ -816,9 +819,9 @@ export function App() {
                                     autoComplete="off"
                                   />
                                 </label>
-                                <button class="danger-button" disabled={busy}>
+                                <Button class="danger-button" disabled={busy}>
                                   {t("Delete permanently", "ลบถาวร")}
-                                </button>
+                                </Button>
                               </form>
                             </details>
                           </>
@@ -839,7 +842,7 @@ export function App() {
               height="280"
               alt={t("Trip invitation QR code", "QR คำเชิญเข้าร่วมทริป")}
             />
-            <button onClick={() => setQr("")}>{t("Close", "ปิด")}</button>
+            <Button onClick={() => setQr("")}>{t("Close", "ปิด")}</Button>
           </section>
         )}
       </main>

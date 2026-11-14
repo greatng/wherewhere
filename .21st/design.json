@@ -15,8 +15,9 @@
       "src/style.css"
     ],
     "components": [
-      "src/shared/ActionIcon.tsx",
-      "src/shared/ThemeToggle.tsx"
+      "src/shared/ui/Button.tsx",
+      "src/shared/ui/ThemeChoice.tsx",
+      "src/shared/ActionIcon.tsx"
     ],
     "assets": [],
     "instructions": []
@@ -32,7 +33,10 @@
     "density": "compact"
   },
   "components": {
-    "installed": [],
+    "installed": [
+      "21st @shugar/button-1 (catalog3824), Preact adaptation",
+      "21st @campsite/theme-toggle (catalog554), Preact adaptation"
+    ],
     "preferredPrimitives": [],
     "patterns": []
   },
@@ -52,7 +56,7 @@
   "decisions": [
     "Keep ivory/moss light palette; use charcoal/moss dark palette.",
     "Follow system appearance until a user selects light or dark; persist explicit selection.",
-    "Use official 21st skill workflow; catalog search currently requires authentication, so no catalog component is claimed."
+    "Authenticated catalog retrieval completed. Adapted shared buttons and compact Light/Dark/System choices; provenance and upstream snapshots in vendor/21st."
   ],
   "evidence": [
     {

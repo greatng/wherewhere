@@ -38,6 +38,12 @@ These screenshots are fixture-backed previews. They show the UI at desktop and m
 
 The theme checks verify that the selected light or dark mode is applied before the page renders, persists in `paikan-theme` after reload, and that a browser with no saved preference follows system light/dark changes live. The fixture uses a fresh context for system preference checks, so it does not clear or replace the primary context's saved theme. Both viewport projects capture Today, Plan, Expenses, and Trip in dark mode, plus a light Today preview. Each capture checks the document width against the viewport to catch horizontal overflow.
 
+The signed-in account menu includes an Appearance radio group with Light, Dark, and System choices. Browser coverage verifies the selected radio, persistence of explicit Dark, and live OS changes after returning to System. Desktop and mobile fixtures capture the open account menu:
+
+![Desktop account Appearance fixture preview](../artifacts/desktop-chromium-account-appearance-fixture-preview.png)
+
+![Mobile account Appearance fixture preview](../artifacts/mobile-chromium-account-appearance-fixture-preview.png)
+
 ![Desktop dark Today preview](../artifacts/desktop-chromium-dark-today-fixture-preview.png)
 
 ![Mobile dark Today preview](../artifacts/mobile-chromium-dark-today-fixture-preview.png)
@@ -80,7 +86,7 @@ The refreshed Plan previews show destination nights, activities, and stays as fl
 
 Destination-time regressions run with an America/Los_Angeles browser and an Asia/Bangkok trip. They verify that 09:30 in Bangkok saves as 02:30Z and displays and edits as 09:30 in both Today and Plan, regardless of the browser timezone. A legacy Nov 2 02:00Z activity stays on Nov 2 at 09:00 Bangkok time after an unchanged save. Trip creation saves its IANA timezone, and changing it updates display/edit values while preserving the stored timestamp. Plan regressions check that row action buttons contain SVG icons with no visible text while retaining accessible Edit and Remove names. The preview test also checks that Today, Plan, Expenses, and Trip have no horizontal overflow at both viewport sizes.
 
-The full desktop/mobile run passed 21 of 22 tests. The remaining mobile screenshot capture failed with a transient Chromium context error; the identical test passed on isolated retry. All functional destination-time and editing checks passed. Command: `npx playwright test e2e/trip-flow.spec.ts`.
+The focused desktop/mobile browser verification passed 10/10 cases: account Appearance (2), dark tab previews (2), enrolled itinerary and expense actions (2), Plan editors (2), and trip creation/archive/deletion (2). The account test checks the default System selection, explicit Dark persistence, and live system changes after returning to System. One earlier combined focused run had a transient mobile timeout in the dark tab capture; the identical test passed on isolated retry. The full desktop/mobile suite has not been rerun for this change.
 
 ## Remaining release verification
 

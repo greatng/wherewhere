@@ -1,3 +1,4 @@
+import { Button } from "../../shared/ui/Button";
 import { useEffect, useState } from "preact/hooks";
 import {
   confirmEmailCode,
@@ -109,18 +110,18 @@ export function EmailAccess({
                 required
               />
             </label>
-            <button disabled={busy}>
+            <Button disabled={busy}>
               {busy
                 ? t("Please wait…", "กรุณารอสักครู่…")
                 : t("Verify email", "ยืนยันอีเมล")}
-            </button>
+            </Button>
           </form>
-          <button disabled={busy || cooldown > 0} onClick={() => void send()}>
+          <Button disabled={busy || cooldown > 0} onClick={() => void send()}>
             {cooldown
               ? t(`Resend in ${cooldown}s`, `ส่งใหม่ได้ใน ${cooldown} วินาที`)
               : t("Resend code", "ส่งรหัสใหม่")}
-          </button>
-          <button
+          </Button>
+          <Button
             disabled={busy}
             onClick={() => {
               setEnrollment(undefined);
@@ -129,7 +130,7 @@ export function EmailAccess({
             }}
           >
             {t("Change email", "เปลี่ยนอีเมล")}
-          </button>
+          </Button>
         </>
       ) : (
         <form
@@ -149,13 +150,13 @@ export function EmailAccess({
               required
             />
           </label>
-          <button disabled={busy || cooldown > 0}>
+          <Button disabled={busy || cooldown > 0}>
             {busy
               ? t("Sending…", "กำลังส่ง…")
               : cooldown
                 ? t(`Try again in ${cooldown}s`, `ลองใหม่ใน ${cooldown} วินาที`)
                 : t("Send sign-in code", "ส่งรหัสลงชื่อเข้าใช้")}
-          </button>
+          </Button>
         </form>
       )}
     </section>

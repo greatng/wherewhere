@@ -1,3 +1,4 @@
+import { Button } from "../../shared/ui/Button";
 type Request = {
   id: string;
   trip_id: string;
@@ -106,9 +107,9 @@ export function GuestRecovery({
                 "ฉันยืนยันบุคคลนี้ผ่านช่องทางที่เชื่อถือแล้ว",
               )}
             </label>
-            <button disabled={busy}>
+            <Button disabled={busy}>
               {t("Reopen for approval", "เปิดคำขอเพื่อพิจารณาอีกครั้ง")}
-            </button>
+            </Button>
           </form>
         </details>
       ))}
@@ -166,9 +167,9 @@ export function GuestRecovery({
                 "ฉันยืนยันว่าเป็นบุคคลเดียวกันและอนุญาตให้ย้ายสิทธิ์",
               )}
             </label>
-            <button disabled={busy}>
+            <Button disabled={busy}>
               {t("Recover existing member", "กู้คืนสมาชิกเดิม")}
-            </button>
+            </Button>
           </form>
         </details>
       )}

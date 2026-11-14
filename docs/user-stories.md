@@ -132,3 +132,10 @@ Remove repeated timezone names from the daily workspace and activity rows. Keep 
 GitHub issue: https://github.com/greatng/wherewhere/issues/17
 
 As a traveler I can switch appearance using an accessible header control, retain my choice across reloads and follow system appearance before choosing. Dark surfaces preserve contrast, focus, Senior mode and QR readability. The official 21st skills are installed and design context initialized; catalog retrieval is blocked until 21st authentication is configured, so this change reuses Preact primitives and does not claim downloaded components.
+
+
+## US18 — actual 21st.dev component integration
+
+GitHub issue: https://github.com/greatng/wherewhere/issues/18
+
+Retrieve real catalog source and integrate it into the running Preact app. Shared Button derives from @shugar/button-1 (3824); compact Light/Dark/System choices derive from @campsite/theme-toggle (554). Preserve native form behavior, SVG actions, destination time, focus, touch targets and explicit/system appearance persistence. Source snapshots and adaptation notes are retained in vendor/21st; credentials are not committed. This supersedes US17's authentication blocker.

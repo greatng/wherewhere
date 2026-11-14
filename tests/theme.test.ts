@@ -19,6 +19,7 @@ function mediaQuery(initial: boolean) {
 describe("theme preference", () => {
   let media: ReturnType<typeof mediaQuery>;
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.resetModules();
     localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
@@ -61,5 +62,26 @@ describe("theme preference", () => {
     const theme = await import("../src/shared/theme");
     expect(theme.toggleTheme()).toBe("dark");
     expect(theme.getTheme()).toBe("dark");
+  });
+
+  it("clears a saved choice for System and follows OS changes again", async () => {
+    localStorage.setItem("paikan-theme", "dark");
+    const theme = await import("../src/shared/theme");
+    expect(theme.getThemePreference()).toBe("dark");
+
+    expect(theme.setThemePreference("system")).toBe("light");
+    expect(theme.getThemePreference()).toBe("system");
+    expect(localStorage.getItem("paikan-theme")).toBeNull();
+    media.set(true);
+    expect(theme.getTheme()).toBe("dark");
+  });
+
+  it("persists a selected choice and synchronizes it with the header toggle", async () => {
+    const theme = await import("../src/shared/theme");
+    theme.setThemePreference("dark");
+    expect(localStorage.getItem("paikan-theme")).toBe("dark");
+    expect(theme.getThemePreference()).toBe("dark");
+    theme.toggleTheme();
+    expect(theme.getThemePreference()).toBe("light");
   });
 });

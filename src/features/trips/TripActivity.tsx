@@ -1,3 +1,4 @@
+import { Button } from "../../shared/ui/Button";
 import { ActionIcon } from "../../shared/ActionIcon";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
@@ -915,7 +916,7 @@ export function TripActivity({
             {trip.title} · {trip.base_currency}
           </p>
         </div>
-        <button
+        <Button
           type="button"
           aria-pressed={senior}
           onClick={() => setSenior(!senior)}
@@ -923,7 +924,7 @@ export function TripActivity({
           {senior
             ? tr("Exit senior view", "ออกจากมุมมองผู้สูงวัย")
             : tr("Senior view", "มุมมองผู้สูงวัย")}
-        </button>
+        </Button>
       </div>
       {offline && (
         <p role="status">
@@ -987,7 +988,7 @@ export function TripActivity({
               </span>
               {op.error && <p role="alert">{op.error}</p>}
               {(op.state === "failed" || op.state === "blocked") && (
-                <button
+                <Button
                   type="button"
                   onClick={async () => {
                     await retryOperation(op.id, uid, trip.id);
@@ -996,10 +997,10 @@ export function TripActivity({
                   }}
                 >
                   {tr("Retry", "ลองอีกครั้ง")}
-                </button>
+                </Button>
               )}
               {op.state !== "sending" && (
-                <button
+                <Button
                   type="button"
                   onClick={async () => {
                     await discardOperation(op.id, uid, trip.id, () =>
@@ -1014,7 +1015,7 @@ export function TripActivity({
                   }}
                 >
                   {tr("Discard", "ลบรายการ")}
-                </button>
+                </Button>
               )}
             </article>
           ))}
@@ -1026,37 +1027,37 @@ export function TripActivity({
           aria-label={tr("Trip sections", "ส่วนของทริป")}
         >
           {!senior && (
-            <button
+            <Button
               type="button"
               aria-current={tab === "today" ? "page" : undefined}
               onClick={() => setTab("today")}
             >
               {tr("Today", "วันนี้")}
-            </button>
+            </Button>
           )}
           {!senior && (
-            <button
+            <Button
               type="button"
               aria-current={tab === "plan" ? "page" : undefined}
               onClick={() => setTab("plan")}
             >
               {tr("Plan", "แผนการเดินทาง")}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="button"
             aria-current={tab === "expenses" ? "page" : undefined}
             onClick={() => setTab("expenses")}
           >
             {tr("Expenses", "ค่าใช้จ่าย")}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             aria-current={tab === "trip" ? "page" : undefined}
             onClick={() => setTab("trip")}
           >
             {tr("Trip", "ทริป")}
-          </button>
+          </Button>
         </nav>
       )}
       {(tab === "today" || tab === "trip") && (
@@ -1152,13 +1153,13 @@ export function TripActivity({
                   {tr("Open directions", "เปิดเส้นทางในแผนที่")}
                 </a>
                 {me && (
-                  <button
+                  <Button
                     class="checkin"
                     type="button"
                     onClick={() => void checkIn(heroStop)}
                   >
                     {tr("I'm Here", "ฉันมาถึงแล้ว")}
-                  </button>
+                  </Button>
                 )}
               </>
             ) : today.state === "active" ? (
@@ -1231,14 +1232,15 @@ export function TripActivity({
                   {item.address && <p>{item.address}</p>}
                   {item.notes && <p>{item.notes}</p>}
                   {!organizer && me && (
-                    <button type="button" onClick={() => void checkIn(item)}>
+                    <Button type="button" onClick={() => void checkIn(item)}>
                       {tr("I'm Here", "ฉันมาถึงแล้ว")}
-                    </button>
+                    </Button>
                   )}
                   {organizer && !senior && (
                     <>
-                      <button
+                      <Button
                         type="button"
+                        svgOnly appearance="tertiary"
                         class="plan-icon-button"
                         aria-label={tr("Edit stop", "แก้ไขจุดหมาย")}
                         title={tr("Edit stop", "แก้ไขจุดหมาย")}
@@ -1256,16 +1258,17 @@ export function TripActivity({
                         }}
                       >
                         <ActionIcon kind="edit" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        svgOnly appearance="tertiary"
                         class="plan-icon-button danger"
                         aria-label={tr("Delete stop", "ลบจุดหมาย")}
                         title={tr("Delete stop", "ลบจุดหมาย")}
                         onClick={() => void deleteItem(item)}
                       >
                         <ActionIcon kind="remove" />
-                      </button>
+                      </Button>
                     </>
                   )}
                 </article>
@@ -1402,9 +1405,9 @@ export function TripActivity({
                         ))}
                       </select>
                     </label>
-                    <button>{tr("Save stop", "บันทึกจุดหมาย")}</button>
+                    <Button>{tr("Save stop", "บันทึกจุดหมาย")}</Button>
                     {editing && (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => {
                           setEditing(null);
@@ -1412,7 +1415,7 @@ export function TripActivity({
                         }}
                       >
                         {tr("Cancel", "ยกเลิก")}
-                      </button>
+                      </Button>
                     )}
                   </form>
                 </details>
@@ -1566,7 +1569,7 @@ export function TripActivity({
                   </label>
                 ))}
               </fieldset>
-              <button>{tr("Save expense", "บันทึกค่าใช้จ่าย")}</button>
+              <Button>{tr("Save expense", "บันทึกค่าใช้จ่าย")}</Button>
             </form>
           </details>
           <h3>{tr("Balances", "ยอดคงเหลือ")}</h3>
@@ -1608,14 +1611,14 @@ export function TripActivity({
                     thai ? "th-TH" : "en",
                   )}{" "}
                   {(organizer || me?.id === s.from) && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() =>
                         void recordSettlement(s.from, s.to, s.amountMinor)
                       }
                     >
                       {tr("Record payment", "บันทึกการชำระ")}
-                    </button>
+                    </Button>
                   )}
                 </p>
               ))}
@@ -1644,12 +1647,12 @@ export function TripActivity({
                     (m) =>
                       m.id === s.to_member_id && m.managed_by_user_id === uid,
                   )) && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => void confirmSettlement(s.id)}
                   >
                     {tr("Confirm received", "ยืนยันว่าได้รับแล้ว")}
-                  </button>
+                  </Button>
                 )}
               </p>
             ))}
@@ -1850,7 +1853,7 @@ export function TripActivity({
                           disabled={!e.expense_date}
                         />
                       </label>
-                      <button>{tr("Save correction", "บันทึกการแก้ไข")}</button>
+                      <Button>{tr("Save correction", "บันทึกการแก้ไข")}</Button>
                     </form>
                   </details>
                 )}
@@ -1980,7 +1983,7 @@ function EmergencyCard({
                 defaultValue={card?.emergency_contact_phone ?? ""}
               />
             </label>
-            <button>{tr("Save", "บันทึก")}</button>
+            <Button>{tr("Save", "บันทึก")}</Button>
           </form>
         </details>
       )}

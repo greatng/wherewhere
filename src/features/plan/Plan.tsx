@@ -1,3 +1,4 @@
+import { Button } from "../../shared/ui/Button";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useQuery, useQueryClient } from "@tanstack/preact-query";
 import { supabase } from "../../shared/supabase/client";
@@ -467,8 +468,9 @@ export function Plan({
                   </p>
                   {organizer && (
                     <>
-                      <button
+                      <Button
                         type="button"
+                        svgOnly appearance="tertiary"
                         class="plan-icon-button icon44"
                         aria-label={t("Edit this night", "แก้ไขคืนนี้")}
                         title={t("Edit this night", "แก้ไขคืนนี้")}
@@ -480,16 +482,17 @@ export function Plan({
                         }}
                       >
                         <ActionIcon kind="edit" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        svgOnly appearance="tertiary"
                         class="plan-icon-button icon44 danger"
                         aria-label={t("Remove", "ลบ")}
                         title={t("Remove", "ลบ")}
                         onClick={() => void deleteNight(night)}
                       >
                         <ActionIcon kind="remove" />
-                      </button>
+                      </Button>
                     </>
                   )}
                 </>
@@ -524,9 +527,10 @@ export function Plan({
                     </p>
                     {organizer && (
                       <>
-                        <button
+                        <Button
                           type="button"
-                          class="plan-icon-button icon44"
+                          svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
                           aria-label={t("Edit activity", "แก้ไขกิจกรรม")}
                           title={t("Edit activity", "แก้ไขกิจกรรม")}
                           onClick={() => {
@@ -542,24 +546,26 @@ export function Plan({
                           }}
                         >
                           <ActionIcon kind="edit" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          class="plan-icon-button icon44 danger"
+                          svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44 danger"
                           aria-label={t("Remove", "ลบ")}
                           title={t("Remove", "ลบ")}
                           onClick={() => void deleteActivity(activity)}
                         >
                           <ActionIcon kind="remove" />
-                        </button>
+                        </Button>
                       </>
                     )}
                   </div>
                 ))}
               {organizer && (
-                <button
+                <Button
                   type="button"
-                  class="plan-icon-button icon44"
+                  svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
                   aria-label={t("Add activity", "เพิ่มกิจกรรม")}
                   title={t("Add activity", "เพิ่มกิจกรรม")}
                   onClick={() => {
@@ -570,16 +576,17 @@ export function Plan({
                   }}
                 >
                   <ActionIcon kind="add" />
-                </button>
+                </Button>
               )}
             </article>
           );
         })}
         {organizer && (
           <>
-            <button
+            <Button
               type="button"
-              class="plan-icon-button icon44"
+              svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
               aria-label={t(
                 "Add city for a night or range",
                 "เพิ่มเมืองสำหรับหนึ่งคืนหรือช่วงวันที่",
@@ -596,7 +603,7 @@ export function Plan({
               }}
             >
               <ActionIcon kind="add" />
-            </button>
+            </Button>
             {showNightEditor && (
               <form
                 class="plan-form editor-panel"
@@ -663,9 +670,10 @@ export function Plan({
                     "ฉันเข้าใจว่าการดำเนินการนี้จะเขียนทับเมืองในคืนที่เลือก",
                   )}
                 </label>
-                <button
+                <Button
                   type="submit"
-                  class="plan-icon-button icon44"
+                  svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
                   aria-label={
                     nightForm
                       ? t("Save night or range", "บันทึกคืนหรือช่วงวันที่")
@@ -678,10 +686,11 @@ export function Plan({
                   }
                 >
                   <ActionIcon kind="save" />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  class="plan-icon-button icon44"
+                  svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
                   aria-label={t("Cancel", "ยกเลิก")}
                   title={t("Cancel", "ยกเลิก")}
                   onClick={() => {
@@ -690,7 +699,7 @@ export function Plan({
                   }}
                 >
                   <ActionIcon kind="cancel" />
-                </button>
+                </Button>
               </form>
             )}
           </>
@@ -709,9 +718,10 @@ export function Plan({
             {stay.phone && <p>{stay.phone}</p>}
             {organizer && (
               <>
-                <button
+                <Button
                   type="button"
-                  class="plan-icon-button icon44"
+                  svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
                   aria-label={t("Edit", "แก้ไข")}
                   title={t("Edit", "แก้ไข")}
                   onClick={() => {
@@ -721,25 +731,27 @@ export function Plan({
                   }}
                 >
                   <ActionIcon kind="edit" />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  class="plan-icon-button icon44 danger"
+                  svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44 danger"
                   aria-label={t("Remove", "ลบ")}
                   title={t("Remove", "ลบ")}
                   onClick={() => void deleteStay(stay)}
                 >
                   <ActionIcon kind="remove" />
-                </button>
+                </Button>
               </>
             )}
           </article>
         ))}
         {organizer && (
           <>
-            <button
+            <Button
               type="button"
-              class="plan-icon-button icon44"
+              svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
               aria-label={t("Add accommodation", "เพิ่มที่พัก")}
               title={t("Add accommodation", "เพิ่มที่พัก")}
               aria-expanded={showStayEditor}
@@ -750,7 +762,7 @@ export function Plan({
               }}
             >
               <ActionIcon kind="add" />
-            </button>
+            </Button>
             {showStayEditor && (
               <form
                 class="plan-form editor-panel"
@@ -815,17 +827,19 @@ export function Plan({
                     defaultValue={stayForm?.phone ?? ""}
                   />
                 </label>
-                <button
+                <Button
                   type="submit"
-                  class="plan-icon-button icon44"
+                  svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
                   aria-label={t("Save accommodation", "บันทึกที่พัก")}
                   title={t("Save accommodation", "บันทึกที่พัก")}
                 >
                   <ActionIcon kind="save" />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  class="plan-icon-button icon44"
+                  svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
                   aria-label={t("Cancel", "ยกเลิก")}
                   title={t("Cancel", "ยกเลิก")}
                   onClick={() => {
@@ -834,7 +848,7 @@ export function Plan({
                   }}
                 >
                   <ActionIcon kind="cancel" />
-                </button>
+                </Button>
               </form>
             )}
           </>
@@ -921,17 +935,19 @@ export function Plan({
                 t={t}
               />
             </label>
-            <button
+            <Button
               type="submit"
-              class="plan-icon-button icon44"
+              svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
               aria-label={t("Save activity", "บันทึกกิจกรรม")}
               title={t("Save activity", "บันทึกกิจกรรม")}
             >
               <ActionIcon kind="save" />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              class="plan-icon-button icon44"
+              svgOnly appearance="tertiary"
+                        class="plan-icon-button icon44"
               aria-label={t("Cancel", "ยกเลิก")}
               title={t("Cancel", "ยกเลิก")}
               onClick={() => {
@@ -940,7 +956,7 @@ export function Plan({
               }}
             >
               <ActionIcon kind="cancel" />
-            </button>
+            </Button>
           </form>
         </section>
       )}

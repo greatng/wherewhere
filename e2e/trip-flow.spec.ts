@@ -1303,6 +1303,41 @@ test("theme toggle persists and system preference updates the default", async ({
   await context.close();
 });
 
+test("account Appearance offers Light, Dark, and System and follows the OS", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await installFixture(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "fixture@example.test" }).click();
+
+  const appearance = page.getByRole("group", { name: "Appearance" });
+  await expect(appearance).toBeVisible();
+  await expect(appearance.getByRole("radio", { name: "Light" })).not.toBeChecked();
+  await expect(appearance.getByRole("radio", { name: "Dark" })).not.toBeChecked();
+  await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
+  await page.locator(".account-menu").screenshot({
+    path: `artifacts/${testInfo.project.name}-account-appearance-fixture-preview.png`,
+  });
+
+  await appearance.getByRole("radio", { name: "Dark" }).check();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await page.evaluate(() => localStorage.getItem("paikan-theme"))).toBe(
+    "dark",
+  );
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await appearance.getByRole("radio", { name: "System" }).check();
+  await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await page.evaluate(() => localStorage.getItem("paikan-theme"))).toBeNull();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+});
+
 test("captures dark trip tabs and light preview without horizontal overflow", async ({
   page,
 }, testInfo) => {

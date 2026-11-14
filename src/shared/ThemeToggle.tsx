@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import { useEffect, useState } from "preact/hooks";
 import { getTheme, subscribeTheme, toggleTheme } from "./theme";
 
@@ -8,7 +9,7 @@ export function ThemeToggle({ thai = false }: Props) {
   useEffect(() => subscribeTheme(setTheme), []);
   const dark = theme === "dark";
   return (
-    <button
+    <Button
       class="theme-toggle"
       type="button"
       aria-label={
@@ -32,6 +33,6 @@ export function ThemeToggle({ thai = false }: Props) {
           <path d="M20.9 13A8.5 8.5 0 0 1 11 3.1 8.5 8.5 0 1 0 20.9 13Z" />
         </svg>
       )}
-    </button>
+    </Button>
   );
 }

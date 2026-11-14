@@ -1,7 +1,9 @@
 export type Theme = "light" | "dark";
+export type ThemePreference = Theme | "system";
 
 const STORAGE_KEY = "paikan-theme";
 type Listener = (theme: Theme) => void;
+type PreferenceListener = (preference: ThemePreference) => void;
 type DarkPreference = Pick<MediaQueryList, "matches" | "addEventListener">;
 
 function readDarkPreference(): DarkPreference {
@@ -27,6 +29,12 @@ let explicitTheme = readStoredTheme();
 const media = readDarkPreference();
 let currentTheme: Theme = explicitTheme ?? (media.matches ? "dark" : "light");
 const listeners = new Set<Listener>();
+const preferenceListeners = new Set<PreferenceListener>();
+
+function notifyPreference() {
+  const preference = getThemePreference();
+  for (const listener of preferenceListeners) listener(preference);
+}
 
 function apply(theme: Theme) {
   currentTheme = theme;
@@ -46,10 +54,22 @@ window.addEventListener("storage", (event) => {
   explicitTheme = validTheme(event.newValue) ? event.newValue : null;
   if (explicitTheme) apply(explicitTheme);
   else apply(media.matches ? "dark" : "light");
+  notifyPreference();
 });
 
 export function getTheme(): Theme {
   return currentTheme;
+}
+
+export function getThemePreference(): ThemePreference {
+  return explicitTheme ?? "system";
+}
+
+export function subscribeThemePreference(
+  listener: PreferenceListener,
+): () => void {
+  preferenceListeners.add(listener);
+  return () => preferenceListeners.delete(listener);
 }
 
 export function subscribeTheme(listener: Listener): () => void {
@@ -58,12 +78,18 @@ export function subscribeTheme(listener: Listener): () => void {
 }
 
 export function toggleTheme(): Theme {
-  explicitTheme = currentTheme === "dark" ? "light" : "dark";
+  return setThemePreference(currentTheme === "dark" ? "light" : "dark");
+}
+
+export function setThemePreference(preference: ThemePreference): Theme {
+  explicitTheme = preference === "system" ? null : preference;
   try {
-    localStorage.setItem(STORAGE_KEY, explicitTheme);
+    if (explicitTheme) localStorage.setItem(STORAGE_KEY, explicitTheme);
+    else localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Keep the explicit choice for this page session when storage is unavailable.
   }
-  apply(explicitTheme);
+  apply(explicitTheme ?? (media.matches ? "dark" : "light"));
+  notifyPreference();
   return currentTheme;
 }
